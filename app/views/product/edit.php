@@ -144,10 +144,9 @@
                             <i class="bi bi-arrow-left"></i> Quay Lại
                         </a>
                         <div>
-                            <a href="/Product/delete/<?php echo $product->getID(); ?>" class="btn btn-danger me-2"
-                               onclick="return confirm('Bạn có chắc chắn muốn xóa sản phẩm này?');">
+                            <button type="button" class="btn btn-danger me-2" data-bs-toggle="modal" data-bs-target="#deleteModal">
                                 <i class="bi bi-trash"></i> Xóa Sản Phẩm
-                            </a>
+                            </button>
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-check-circle"></i> Lưu Thay Đổi
                             </button>
@@ -168,6 +167,36 @@
                         <p><strong><i class="bi bi-key"></i> ID Sản Phẩm:</strong> <?php echo $product->getID(); ?></p>
                         <!-- Thêm các thông tin khác nếu có -->
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xác nhận xóa -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="deleteModalLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Xác nhận xóa
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-trash text-danger" style="font-size: 3rem;"></i>
+                    </div>
+                    <p class="text-center fs-5">Bạn có chắc chắn muốn xóa sản phẩm:</p>
+                    <p class="text-center fw-bold fs-4">"<?php echo htmlspecialchars($product->getName(), ENT_QUOTES, 'UTF-8'); ?>"</p>
+                    <p class="text-center text-muted">Hành động này không thể hoàn tác!</p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-2"></i>Hủy bỏ
+                    </button>
+                    <a href="/Product/delete/<?php echo $product->getID(); ?>" class="btn btn-danger">
+                        <i class="bi bi-trash me-2"></i>Xác nhận xóa
+                    </a>
                 </div>
             </div>
         </div>

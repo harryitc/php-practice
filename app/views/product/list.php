@@ -125,10 +125,40 @@
                                             <a class="btn btn-sm btn-warning me-1" href="/Product/edit/<?php echo $product->getID(); ?>" title="Sửa">
                                                 <i class="bi bi-pencil-square"></i>
                                             </a>
-                                            <a class="btn btn-sm btn-danger" href="/Product/delete/<?php echo $product->getID(); ?>"
-                                               onclick="return confirm('Bạn có chắc chắn muốn xóa sản phẩm này?');" title="Xóa">
+                                            <button type="button" class="btn btn-sm btn-danger"
+                                                    data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $product->getID(); ?>" title="Xóa">
                                                 <i class="bi bi-trash"></i>
-                                            </a>
+                                            </button>
+
+                                            <!-- Modal Xác nhận xóa -->
+                                            <div class="modal fade" id="deleteModal<?php echo $product->getID(); ?>" tabindex="-1" aria-labelledby="deleteModalLabel<?php echo $product->getID(); ?>" aria-hidden="true">
+                                                <div class="modal-dialog modal-dialog-centered">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header bg-danger text-white">
+                                                            <h5 class="modal-title" id="deleteModalLabel<?php echo $product->getID(); ?>">
+                                                                <i class="bi bi-exclamation-triangle-fill me-2"></i>Xác nhận xóa
+                                                            </h5>
+                                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <div class="text-center mb-3">
+                                                                <i class="bi bi-trash text-danger" style="font-size: 3rem;"></i>
+                                                            </div>
+                                                            <p class="text-center fs-5">Bạn có chắc chắn muốn xóa sản phẩm:</p>
+                                                            <p class="text-center fw-bold fs-4">"<?php echo htmlspecialchars($product->getName(), ENT_QUOTES, 'UTF-8'); ?>"</p>
+                                                            <p class="text-center text-muted">Hành động này không thể hoàn tác!</p>
+                                                        </div>
+                                                        <div class="modal-footer justify-content-center">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                                <i class="bi bi-x-circle me-2"></i>Hủy bỏ
+                                                            </button>
+                                                            <a href="/Product/delete/<?php echo $product->getID(); ?>" class="btn btn-danger">
+                                                                <i class="bi bi-trash me-2"></i>Xác nhận xóa
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
