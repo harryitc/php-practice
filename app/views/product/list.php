@@ -126,32 +126,107 @@
             </a>
         </div>
 
+        <!-- Success Message -->
+        <?php if (isset($_SESSION['success_message'])): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i><?php echo $_SESSION['success_message']; ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php
+            // Clear the message after displaying it
+            unset($_SESSION['success_message']);
+        endif; ?>
+
         <!-- Search and Filter Section -->
         <div class="card shadow-sm mb-4">
             <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="input-group search-box">
-                            <input type="text" class="form-control" placeholder="Search products..." aria-label="Search">
-                            <button class="btn btn-outline-primary" type="button">
-                                <i class="bi bi-search"></i>
-                            </button>
+                <form action="/Product/list" method="GET" id="filterForm">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="input-group search-box">
+                                <input type="text" class="form-control" name="search" placeholder="Search products..."
+                                       value="<?php echo htmlspecialchars((string)($search ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+                                <button class="btn btn-outline-primary" type="submit">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <select class="form-select" name="status" id="statusFilter" onchange="document.getElementById('filterForm').submit()">
+                                        <option value="">All Statuses</option>
+                                        <?php foreach ($statuses as $statusOption): ?>
+                                            <option value="<?php echo htmlspecialchars((string)$statusOption, ENT_QUOTES, 'UTF-8'); ?>"
+                                                <?php echo ($selectedStatus == $statusOption) ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars((string)$statusOption, ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <select class="form-select" name="grade" id="gradeFilter" onchange="document.getElementById('filterForm').submit()">
+                                        <option value="">All Grades</option>
+                                        <?php foreach ($grades as $gradeOption): ?>
+                                            <option value="<?php echo htmlspecialchars((string)$gradeOption, ENT_QUOTES, 'UTF-8'); ?>"
+                                                <?php echo ($selectedGrade == $gradeOption) ? 'selected' : ''; ?>>
+                                                Grade <?php echo htmlspecialchars((string)$gradeOption, ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <select class="form-select" name="inventory" id="inventoryFilter" onchange="document.getElementById('filterForm').submit()">
+                                        <option value="">All Inventory</option>
+                                        <option value="in_stock" <?php echo ($selectedInventory == 'in_stock') ? 'selected' : ''; ?>>In Stock</option>
+                                        <option value="out_of_stock" <?php echo ($selectedInventory == 'out_of_stock') ? 'selected' : ''; ?>>Out of Stock</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6 text-md-end">
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-outline-primary">
-                                <i class="bi bi-sort-alpha-down"></i> Name
-                            </button>
-                            <button type="button" class="btn btn-outline-primary">
-                                <i class="bi bi-sort-numeric-down"></i> Status
-                            </button>
-                            <button type="button" class="btn btn-outline-primary">
-                                <i class="bi bi-sort-numeric-down"></i> Inventory
-                            </button>
+
+                    <?php if (!empty($search) || !empty($selectedStatus) || !empty($selectedGrade) || !empty($selectedInventory)): ?>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="d-flex align-items-center">
+                                <span class="me-2">Active filters:</span>
+                                <?php if (!empty($search)): ?>
+                                    <span class="badge bg-primary me-2">
+                                        Search: <?php echo htmlspecialchars((string)$search, ENT_QUOTES, 'UTF-8'); ?>
+                                        <a href="<?php echo $this->removeQueryParam('search'); ?>" class="text-white ms-1"><i class="bi bi-x-circle"></i></a>
+                                    </span>
+                                <?php endif; ?>
+
+                                <?php if (!empty($selectedStatus)): ?>
+                                    <span class="badge bg-primary me-2">
+                                        Status: <?php echo htmlspecialchars((string)$selectedStatus, ENT_QUOTES, 'UTF-8'); ?>
+                                        <a href="<?php echo $this->removeQueryParam('status'); ?>" class="text-white ms-1"><i class="bi bi-x-circle"></i></a>
+                                    </span>
+                                <?php endif; ?>
+
+                                <?php if (!empty($selectedGrade)): ?>
+                                    <span class="badge bg-primary me-2">
+                                        Grade: <?php echo htmlspecialchars((string)$selectedGrade, ENT_QUOTES, 'UTF-8'); ?>
+                                        <a href="<?php echo $this->removeQueryParam('grade'); ?>" class="text-white ms-1"><i class="bi bi-x-circle"></i></a>
+                                    </span>
+                                <?php endif; ?>
+
+                                <?php if (!empty($selectedInventory)): ?>
+                                    <span class="badge bg-primary me-2">
+                                        Inventory: <?php echo $selectedInventory == 'in_stock' ? 'In Stock' : 'Out of Stock'; ?>
+                                        <a href="<?php echo $this->removeQueryParam('inventory'); ?>" class="text-white ms-1"><i class="bi bi-x-circle"></i></a>
+                                    </span>
+                                <?php endif; ?>
+
+                                <?php if (!empty($search) || !empty($selectedStatus) || !empty($selectedGrade) || !empty($selectedInventory)): ?>
+                                    <a href="/Product/list" class="btn btn-sm btn-outline-secondary ms-auto">Clear All Filters</a>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </div>
-                </div>
+                    <?php endif; ?>
+                </form>
             </div>
         </div>
 
@@ -267,21 +342,72 @@
             </div>
         </div>
 
-        <!-- Pagination -->
-        <?php if (!empty($products) && count($products) > 10): ?>
-        <nav aria-label="Page navigation">
-            <ul class="pagination justify-content-center">
-                <li class="page-item disabled">
-                    <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Previous</a>
-                </li>
-                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                <li class="page-item"><a class="page-link" href="#">2</a></li>
-                <li class="page-item"><a class="page-link" href="#">3</a></li>
-                <li class="page-item">
-                    <a class="page-link" href="#">Next</a>
-                </li>
-            </ul>
-        </nav>
+        <!-- Pagination and Results Summary -->
+        <?php if ($totalProducts > 0): ?>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <p class="mb-0 text-muted">
+                    Showing <?php echo count($products); ?> of <?php echo $totalProducts; ?> products
+                    <?php if (!empty($search) || !empty($selectedStatus) || !empty($selectedGrade) || !empty($selectedInventory)): ?>
+                        (filtered)
+                    <?php endif; ?>
+                </p>
+            </div>
+
+            <?php if ($totalPages > 1): ?>
+            <nav aria-label="Page navigation">
+                <ul class="pagination mb-0">
+                    <li class="page-item <?php echo ($currentPage <= 1) ? 'disabled' : ''; ?>">
+                        <a class="page-link" href="<?php echo $this->buildPaginationUrl($currentPage - 1); ?>" tabindex="-1" aria-disabled="<?php echo ($currentPage <= 1) ? 'true' : 'false'; ?>">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+
+                    <?php
+                    $startPage = max(1, $currentPage - 2);
+                    $endPage = min($totalPages, $startPage + 4);
+                    if ($endPage - $startPage < 4 && $totalPages > 4) {
+                        $startPage = max(1, $endPage - 4);
+                    }
+                    ?>
+
+                    <?php if ($startPage > 1): ?>
+                        <li class="page-item">
+                            <a class="page-link" href="<?php echo $this->buildPaginationUrl(1); ?>">1</a>
+                        </li>
+                        <?php if ($startPage > 2): ?>
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <?php for ($i = $startPage; $i <= $endPage; $i++): ?>
+                        <li class="page-item <?php echo ($i == $currentPage) ? 'active' : ''; ?>">
+                            <a class="page-link" href="<?php echo $this->buildPaginationUrl($i); ?>"><?php echo $i; ?></a>
+                        </li>
+                    <?php endfor; ?>
+
+                    <?php if ($endPage < $totalPages): ?>
+                        <?php if ($endPage < $totalPages - 1): ?>
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        <?php endif; ?>
+                        <li class="page-item">
+                            <a class="page-link" href="<?php echo $this->buildPaginationUrl($totalPages); ?>"><?php echo $totalPages; ?></a>
+                        </li>
+                    <?php endif; ?>
+
+                    <li class="page-item <?php echo ($currentPage >= $totalPages) ? 'disabled' : ''; ?>">
+                        <a class="page-link" href="<?php echo $this->buildPaginationUrl($currentPage + 1); ?>" aria-disabled="<?php echo ($currentPage >= $totalPages) ? 'true' : 'false'; ?>">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <?php endif; ?>
+        </div>
         <?php endif; ?>
     </div>
     </div><!-- End of content-wrapper -->
