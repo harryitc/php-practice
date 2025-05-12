@@ -7,6 +7,22 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <title>Thêm Sản Phẩm Mới</title>
     <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .content-wrapper {
+            flex: 1 0 auto;
+        }
+        footer {
+            flex-shrink: 0;
+            margin-top: auto !important;
+        }
         .form-container {
             max-width: 800px;
             margin: 0 auto;
@@ -53,27 +69,28 @@
     </script>
 </head>
 <body class="bg-light">
-    <!-- Header -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="/">Quản Lý Sản Phẩm</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/Product/list"><i class="bi bi-list-ul"></i> Danh Sách Sản Phẩm</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/Product/add"><i class="bi bi-plus-circle"></i> Thêm Sản Phẩm</a>
-                    </li>
-                </ul>
+    <div class="content-wrapper">
+        <!-- Header -->
+        <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+            <div class="container">
+                <a class="navbar-brand" href="/">Quản Lý Sản Phẩm</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/Product/list"><i class="bi bi-list-ul"></i> Danh Sách Sản Phẩm</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/Product/add"><i class="bi bi-plus-circle"></i> Thêm Sản Phẩm</a>
+                        </li>
+                    </ul>
+                </div>
             </div>
-        </div>
-    </nav>
+        </nav>
 
-    <div class="container form-container">
+        <div class="container form-container">
         <!-- Page Title -->
         <div class="row mb-4">
             <div class="col">
@@ -149,9 +166,10 @@
             </div>
         </div>
     </div>
+    </div><!-- End of content-wrapper -->
 
     <!-- Footer -->
-    <footer class="bg-dark text-white text-center py-3 mt-5">
+    <footer class="bg-dark text-white text-center py-3">
         <div class="container">
             <p class="mb-0">&copy; <?php echo date('Y'); ?> Hệ Thống Quản Lý Sản Phẩm</p>
         </div>
