@@ -1,0 +1,2 @@
+#### Note
+- Start bằng laragon
