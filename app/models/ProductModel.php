@@ -50,8 +50,10 @@ class ProductModel{
 
         // Apply filters
         if (!empty($filters['search'])) {
-            $sql .= " AND (name LIKE :search OR description LIKE :search)";
-            $params['search'] = "%{$filters['search']}%";
+            $searchTerm = "%" . $filters['search'] . "%";
+            $sql .= " AND (name LIKE :search_name OR description LIKE :search_desc)";
+            $params['search_name'] = $searchTerm;
+            $params['search_desc'] = $searchTerm;
         }
 
         if (!empty($filters['status'])) {
@@ -80,12 +82,10 @@ class ProductModel{
 
         // Add limit and offset
         if ($limit !== null) {
-            $sql .= " LIMIT :limit";
-            $params['limit'] = $limit;
+            $sql .= " LIMIT " . (int)$limit;
 
             if ($offset !== null) {
-                $sql .= " OFFSET :offset";
-                $params['offset'] = $offset;
+                $sql .= " OFFSET " . (int)$offset;
             }
         }
 
@@ -125,8 +125,10 @@ class ProductModel{
 
         // Apply filters
         if (!empty($filters['search'])) {
-            $sql .= " AND (name LIKE :search OR description LIKE :search)";
-            $params['search'] = "%{$filters['search']}%";
+            $searchTerm = "%" . $filters['search'] . "%";
+            $sql .= " AND (name LIKE :search_name OR description LIKE :search_desc)";
+            $params['search_name'] = $searchTerm;
+            $params['search_desc'] = $searchTerm;
         }
 
         if (!empty($filters['status'])) {
@@ -396,9 +398,7 @@ class ProductModel{
         if ($this->InventoryCount == 0) {
             return "0 in stock";
         } else {
-            return $this->InventoryCount . " in stock";
+            return "{$this->InventoryCount} in stock";
         }
     }
 }
-
-?>
