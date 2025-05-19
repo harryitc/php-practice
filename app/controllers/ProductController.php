@@ -2,8 +2,10 @@
 
 require_once 'app/models/ProductModel.php';
 require_once 'app/models/CategoryModel.php';
+require_once 'app/controllers/AuthController.php';
 
 class ProductController{
+    private $authController;
     private $productModel;
     private $categoryModel;
 
@@ -11,6 +13,7 @@ class ProductController{
         session_start();
         $this->productModel = new ProductModel();
         $this->categoryModel = new CategoryModel();
+        $this->authController = new AuthController();
     }
 
     public function index(){
@@ -87,6 +90,9 @@ class ProductController{
     }
 
     public function add(){
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
         $errors = [];
         $categories = $this->categoryModel->findAll();
 
@@ -169,6 +175,9 @@ class ProductController{
     }
 
     public function edit($id){
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
         $errors = [];
         $product = $this->productModel->findById($id);
         $categories = $this->categoryModel->findAll();
@@ -263,6 +272,9 @@ class ProductController{
     }
 
     public function delete($id){
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
         $product = $this->productModel->findById($id);
 
         // If product not found, show error
@@ -285,5 +297,3 @@ class ProductController{
         exit();
     }
 }
-
-?>

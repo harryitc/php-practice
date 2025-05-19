@@ -81,13 +81,36 @@
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-auto">
+                    <ul class="navbar-nav me-auto">
                         <li class="nav-item">
                             <a class="nav-link" href="/Product/list"><i class="bi bi-list-ul"></i> Products</a>
                         </li>
+                        <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
                         <li class="nav-item">
                             <a class="nav-link" href="/Product/add"><i class="bi bi-plus-circle"></i> Add Product</a>
                         </li>
+                        <?php endif; ?>
+                    </ul>
+                    <ul class="navbar-nav ms-auto">
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person-circle me-1"></i> <?php echo htmlspecialchars($_SESSION['user_name']); ?>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                                <li><a class="dropdown-item" href="/Auth/profile"><i class="bi bi-person me-2"></i>My Profile</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/Auth/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                            </ul>
+                        </li>
+                        <?php else: ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/Auth/login"><i class="bi bi-box-arrow-in-right"></i> Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/Auth/register"><i class="bi bi-person-plus"></i> Register</a>
+                        </li>
+                        <?php endif; ?>
                     </ul>
                 </div>
             </div>
@@ -123,7 +146,7 @@
                         <div class="card-header bg-white py-3">
                             <div class="d-flex justify-content-between align-items-center">
                                 <h1 class="card-title h3 mb-0"><?php echo htmlspecialchars((string)$product->getName(), ENT_QUOTES, 'UTF-8'); ?></h1>
-                                <?php 
+                                <?php
                                     $statusClass = 'status-scoping';
                                     if ($product->getStatus() == 'Quoting') {
                                         $statusClass = 'status-quoting';
@@ -196,6 +219,7 @@
                                 <a href="/Product/list" class="btn btn-secondary">
                                     <i class="bi bi-arrow-left me-2"></i>Back to List
                                 </a>
+                                <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
                                 <div>
                                     <a href="/Product/edit/<?php echo $product->getID(); ?>" class="btn btn-warning me-2">
                                         <i class="bi bi-pencil-square me-2"></i>Edit
@@ -204,6 +228,7 @@
                                         <i class="bi bi-trash me-2"></i>Delete
                                     </button>
                                 </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>

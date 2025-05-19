@@ -105,13 +105,36 @@
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-auto">
+                    <ul class="navbar-nav me-auto">
                         <li class="nav-item">
                             <a class="nav-link active" href="/Product/list"><i class="bi bi-list-ul"></i> Products</a>
                         </li>
+                        <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
                         <li class="nav-item">
                             <a class="nav-link" href="/Product/add"><i class="bi bi-plus-circle"></i> Add Product</a>
                         </li>
+                        <?php endif; ?>
+                    </ul>
+                    <ul class="navbar-nav ms-auto">
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person-circle me-1"></i> <?php echo htmlspecialchars($_SESSION['user_name']); ?>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                                <li><a class="dropdown-item" href="/Auth/profile"><i class="bi bi-person me-2"></i>My Profile</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="/Auth/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                            </ul>
+                        </li>
+                        <?php else: ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/Auth/login"><i class="bi bi-box-arrow-in-right"></i> Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/Auth/register"><i class="bi bi-person-plus"></i> Register</a>
+                        </li>
+                        <?php endif; ?>
                     </ul>
                 </div>
             </div>
@@ -121,9 +144,11 @@
         <!-- Page Title and Add Button -->
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="text-primary"><i class="bi bi-list-ul"></i> Products</h1>
+            <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
             <a class="btn btn-success" href="/Product/add">
                 <i class="bi bi-plus-circle"></i> Add New Product
             </a>
+            <?php endif; ?>
         </div>
 
         <!-- Success Message -->
@@ -332,10 +357,18 @@
                         <div class="empty-state">
                             <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
                             <h4 class="mt-3">No products found</h4>
-                            <p class="text-muted">Add a new product to get started.</p>
+                            <p class="text-muted">
+                                <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
+                                Add a new product to get started.
+                                <?php else: ?>
+                                No products are available at this time.
+                                <?php endif; ?>
+                            </p>
+                            <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
                             <a href="/Product/add" class="btn btn-primary mt-2">
                                 <i class="bi bi-plus-circle"></i> Add New Product
                             </a>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
                 </div>
