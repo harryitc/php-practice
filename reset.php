@@ -7,7 +7,9 @@
  */
 
 // Reset the session
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 session_destroy();
 
 // Clear any cookies
