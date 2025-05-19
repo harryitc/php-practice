@@ -129,9 +129,11 @@ class AuthController
                 $errors[] = 'Passwords do not match';
             }
 
+            $hash_password = password_hash($password, PASSWORD_DEFAULT);
+
             // If no validation errors, create user
             if (empty($errors)) {
-                $user = new UserModel(null, $name, $email, $password, 'customer');
+                $user = new UserModel(null, $name, $email, $hash_password, 'customer');
 
                 if ($user->save()) {
                     // Set success message
