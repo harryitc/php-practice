@@ -1,37 +1,16 @@
 <?php
 
 require_once 'app/models/ProductModel.php';
+require_once 'app/models/CategoryModel.php';
 
 class ProductController{
-    private $products = [];
+    private $productModel;
+    private $categoryModel;
 
     public function __construct(){
         session_start();
-        if (isset($_SESSION['products'])) {
-            $this->products = $_SESSION['products'];
-        } else {
-            // Add sample products if none exist
-            $this->addSampleProducts();
-        }
-    }
-
-    private function addSampleProducts() {
-        $sampleProducts = [
-            new ProductModel(1, 'Hydrate replenish(body oil)', 'Hydrating body oil for dry skin', 29.99, 'Scoping', 45, 12, 11, 'A', 'https://via.placeholder.com/40'),
-            new ProductModel(2, 'Hydrate replenish', 'Hydrating face cream', 24.99, 'Scoping', 45, 65, 11, 'A', 'https://via.placeholder.com/40'),
-            new ProductModel(3, 'Illumination (mask)', 'Brightening face mask', 19.99, 'Quoting', 45, 35, 11, 'B', 'https://via.placeholder.com/40'),
-            new ProductModel(4, 'Act+ acre hair mask', 'Nourishing hair mask', 34.99, 'Scoping', 45, 24, 11, 'A', 'https://via.placeholder.com/40'),
-            new ProductModel(5, 'Mecca cosmetica', 'Luxury cosmetics set', 89.99, 'Production', 0, 22, 11, 'A', 'https://via.placeholder.com/40'),
-            new ProductModel(6, 'Hylamide (Glow)', 'Illuminating serum', 39.99, 'Scoping', 45, 86, 11, 'B', 'https://via.placeholder.com/40'),
-            new ProductModel(7, 'Mecca cosmetica(body oil)', 'Luxury body oil', 49.99, 'Scoping', 45, 68, 11, 'A', 'https://via.placeholder.com/40'),
-            new ProductModel(8, 'Hydrate replenish(body oil)', 'Hydrating body oil for sensitive skin', 32.99, 'Production', 0, 70, 11, 'C', 'https://via.placeholder.com/40'),
-            new ProductModel(9, 'Illumination (mask)', 'Overnight brightening mask', 29.99, 'Scoping', 45, 56, 11, 'A', 'https://via.placeholder.com/40'),
-            new ProductModel(10, 'Mecca cosmetica(body oil)', 'Luxury body oil with shimmer', 54.99, 'Shipped', 0, 72, 11, 'A', 'https://via.placeholder.com/40'),
-            new ProductModel(11, 'Hylamide (Glow)', 'Illuminating face drops', 44.99, 'Scoping', 45, 80, 11, 'B', 'https://via.placeholder.com/40')
-        ];
-
-        $this->products = $sampleProducts;
-        $_SESSION['products'] = $this->products;
+        $this->productModel = new ProductModel();
+        $this->categoryModel = new CategoryModel();
     }
 
     public function index(){
@@ -40,91 +19,53 @@ class ProductController{
 
     public function list(){
         // Get query parameters
-        $search = isset($_GET['search']) ? trim($_GET['search']) : '';
-        $status = isset($_GET['status']) ? $_GET['status'] : '';
-        $grade = isset($_GET['grade']) ? $_GET['grade'] : '';
-        $inventory = isset($_GET['inventory']) ? $_GET['inventory'] : '';
+        $search = $_GET['search'] ?? '';
+        $search = trim($search);
+        $status = $_GET['status'] ?? '';
+        $grade = $_GET['grade'] ?? '';
+        $inventory = $_GET['inventory'] ?? '';
+        $categoryId = $_GET['category_id'] ?? '';
         $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
         $perPage = 5; // Number of products per page
 
-        // Filter products
-        $filteredProducts = $this->filterProducts($search, $status, $grade, $inventory);
+        // Create filters array
+        $filters = [
+            'search' => $search,
+            'status' => $status,
+            'grade' => $grade,
+            'inventory' => $inventory,
+            'category_id' => $categoryId
+        ];
 
         // Get total number of filtered products
-        $totalProducts = count($filteredProducts);
+        $totalProducts = $this->productModel->countAll($filters);
         $totalPages = ceil($totalProducts / $perPage);
 
         // Ensure page is within valid range
         if ($page < 1) $page = 1;
         if ($page > $totalPages && $totalPages > 0) $page = $totalPages;
 
+        // Calculate offset for pagination
+        $offset = ($page - 1) * $perPage;
+
         // Get products for current page
-        $startIndex = ($page - 1) * $perPage;
-        $paginatedProducts = array_slice($filteredProducts, $startIndex, $perPage);
+        $products = $this->productModel->findAll($filters, $perPage, $offset);
 
         // Get unique statuses and grades for filter dropdowns
-        $statuses = $this->getUniqueValues('Status');
-        $grades = $this->getUniqueValues('Grade');
+        $statuses = $this->productModel->getUniqueValues('status');
+        $grades = $this->productModel->getUniqueValues('grade');
+
+        // Get categories for filter dropdown
+        $categories = $this->categoryModel->findAll();
 
         // Make variables available to the view
-        $products = $paginatedProducts;
         $currentPage = $page;
         $selectedStatus = $status;
         $selectedGrade = $grade;
         $selectedInventory = $inventory;
+        $selectedCategoryId = $categoryId;
 
         include 'app/views/product/list.php';
-    }
-
-    private function filterProducts($search, $status, $grade, $inventory) {
-        $filteredProducts = [];
-
-        foreach ($this->products as $product) {
-            // Apply search filter
-            if (!empty($search)) {
-                $nameMatch = stripos($product->getName(), $search) !== false;
-                $descMatch = stripos($product->getDescription(), $search) !== false;
-                if (!$nameMatch && !$descMatch) {
-                    continue;
-                }
-            }
-
-            // Apply status filter
-            if (!empty($status) && $product->getStatus() != $status) {
-                continue;
-            }
-
-            // Apply grade filter
-            if (!empty($grade) && $product->getGrade() != $grade) {
-                continue;
-            }
-
-            // Apply inventory filter
-            if ($inventory === 'in_stock' && $product->getInventoryCount() == 0) {
-                continue;
-            } elseif ($inventory === 'out_of_stock' && $product->getInventoryCount() > 0) {
-                continue;
-            }
-
-            $filteredProducts[] = $product;
-        }
-
-        return $filteredProducts;
-    }
-
-    private function getUniqueValues($property) {
-        $values = [];
-        $getter = 'get' . $property;
-
-        foreach ($this->products as $product) {
-            $value = $product->$getter();
-            if (!in_array($value, $values)) {
-                $values[] = $value;
-            }
-        }
-
-        sort($values);
-        return $values;
     }
 
     public function removeQueryParam($param) {
@@ -147,6 +88,8 @@ class ProductController{
 
     public function add(){
         $errors = [];
+        $categories = $this->categoryModel->findAll();
+
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Get form data
             $name = $_POST['name'] ?? '';
@@ -158,6 +101,7 @@ class ProductController{
             $outOfStock = $_POST['out_of_stock'] ?? 11;
             $grade = $_POST['grade'] ?? 'A';
             $image = $_POST['image'] ?? '';
+            $categoryId = $_POST['category_id'] ?? null;
 
             // Validation
             if (empty($name)) {
@@ -196,16 +140,28 @@ class ProductController{
 
             // If no errors, create the product
             if (empty($errors)) {
-                $id = count($this->products) + 1;
-                $product = new ProductModel($id, $name, $description, $price, $status, $inventoryCount, $incomingCount, $outOfStock, $grade, $image);
-                $this->products[] = $product;
-                $_SESSION['products'] = $this->products;
+                $product = new ProductModel(
+                    null,
+                    $name,
+                    $description,
+                    $price,
+                    $status,
+                    $inventoryCount,
+                    $incomingCount,
+                    $outOfStock,
+                    $grade,
+                    $image,
+                    $categoryId
+                );
 
-                // Set success message
-                $_SESSION['success_message'] = 'Product "' . htmlspecialchars($name) . '" has been added successfully.';
-
-                header('Location: /Product/list');
-                exit();
+                if ($product->save()) {
+                    // Set success message
+                    $_SESSION['success_message'] = 'Product "' . htmlspecialchars($name) . '" has been added successfully.';
+                    header('Location: /Product/list');
+                    exit();
+                } else {
+                    $errors[] = 'Failed to save product. Please try again.';
+                }
             }
         }
 
@@ -214,15 +170,8 @@ class ProductController{
 
     public function edit($id){
         $errors = [];
-        $product = null;
-
-        // Find the product
-        foreach ($this->products as $p) {
-            if ($p->getID() == $id) {
-                $product = $p;
-                break;
-            }
-        }
+        $product = $this->productModel->findById($id);
+        $categories = $this->categoryModel->findAll();
 
         // If product not found, show error
         if (!$product) {
@@ -241,6 +190,7 @@ class ProductController{
             $outOfStock = $_POST['out_of_stock'] ?? $product->getOutOfStock();
             $grade = $_POST['grade'] ?? $product->getGrade();
             $image = $_POST['image'] ?? $product->getImage();
+            $categoryId = $_POST['category_id'] ?? $product->getCategoryID();
 
             // Validation
             if (empty($name)) {
@@ -267,25 +217,25 @@ class ProductController{
 
             // If no errors, update the product
             if (empty($errors)) {
-                foreach ($this->products as $key => $p) {
-                    if ($p->getID() == $id) {
-                        $this->products[$key]->setName($name);
-                        $this->products[$key]->setDescription($description);
-                        $this->products[$key]->setPrice($price);
-                        $this->products[$key]->setStatus($status);
-                        $this->products[$key]->setInventoryCount($inventoryCount);
-                        $this->products[$key]->setIncomingCount($incomingCount);
-                        $this->products[$key]->setOutOfStock($outOfStock);
-                        $this->products[$key]->setGrade($grade);
-                        $this->products[$key]->setImage($image);
-                        break;
-                    }
-                }
+                $product->setName($name);
+                $product->setDescription($description);
+                $product->setPrice($price);
+                $product->setStatus($status);
+                $product->setInventoryCount($inventoryCount);
+                $product->setIncomingCount($incomingCount);
+                $product->setOutOfStock($outOfStock);
+                $product->setGrade($grade);
+                $product->setImage($image);
+                $product->setCategoryID($categoryId);
 
-                // Save to session and redirect
-                $_SESSION['products'] = $this->products;
-                header('Location: /Product/detail/' . $id);
-                exit();
+                if ($product->save()) {
+                    // Set success message
+                    $_SESSION['success_message'] = 'Product "' . htmlspecialchars($name) . '" has been updated successfully.';
+                    header("Location: /Product/detail/{$id}");
+                    exit();
+                } else {
+                    $errors[] = 'Failed to update product. Please try again.';
+                }
             }
         }
 
@@ -294,15 +244,7 @@ class ProductController{
     }
 
     public function detail($id){
-        $product = null;
-
-        // Find the product
-        foreach ($this->products as $p) {
-            if ($p->getID() == $id) {
-                $product = $p;
-                break;
-            }
-        }
+        $product = $this->productModel->findById($id);
 
         // If product not found, show error
         if (!$product) {
@@ -310,36 +252,33 @@ class ProductController{
             return;
         }
 
+        // Get category if available
+        $category = null;
+        if ($product->getCategoryID()) {
+            $category = $this->categoryModel->findById($product->getCategoryID());
+        }
+
         // Display the product details
         include 'app/views/product/detail.php';
     }
 
     public function delete($id){
-        $productFound = false;
-        $productName = '';
-
-        // Find and delete the product
-        foreach ($this->products as $key => $product) {
-            if ($product->getID() == $id) {
-                $productName = $product->getName();
-                unset($this->products[$key]);
-                $productFound = true;
-                break;
-            }
-        }
+        $product = $this->productModel->findById($id);
 
         // If product not found, show error
-        if (!$productFound) {
+        if (!$product) {
             include 'app/views/error/not_found.php';
             return;
         }
 
-        // Reindex the array and save to session
-        $this->products = array_values($this->products);
-        $_SESSION['products'] = $this->products;
+        $productName = $product->getName();
 
-        // Set success message in session
-        $_SESSION['success_message'] = 'Product "' . htmlspecialchars($productName) . '" has been deleted successfully.';
+        if ($product->delete()) {
+            // Set success message in session
+            $_SESSION['success_message'] = 'Product "' . htmlspecialchars($productName) . '" has been deleted successfully.';
+        } else {
+            $_SESSION['error_message'] = 'Failed to delete product. Please try again.';
+        }
 
         // Redirect to product list
         header('Location: /Product/list');
