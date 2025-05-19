@@ -67,9 +67,13 @@ class AuthController
                     // Set success message
                     $_SESSION['success_message'] = 'Login successful. Welcome back, ' . $user->getName() . '!';
 
-                    // Redirect to home page or intended page
-                    $redirect = $_SESSION['redirect_after_login'] ?? '/';
-                    unset($_SESSION['redirect_after_login']);
+                    // Redirect admin users to admin dashboard, others to home page or intended page
+                    if ($user->getRole() === 'admin') {
+                        $redirect = '/Order/dashboard';
+                    } else {
+                        $redirect = $_SESSION['redirect_after_login'] ?? '/';
+                        unset($_SESSION['redirect_after_login']);
+                    }
 
                     header('Location: ' . $redirect);
                     exit();
