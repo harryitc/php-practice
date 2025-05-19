@@ -113,6 +113,9 @@
                         <li class="nav-item">
                             <a class="nav-link" href="/Product/add"><i class="bi bi-plus-circle"></i> Add Product</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/Order/dashboard"><i class="bi bi-speedometer2"></i> Admin Dashboard</a>
+                        </li>
                         <?php endif; ?>
                     </ul>
                     <ul class="navbar-nav ms-auto">

@@ -17,14 +17,14 @@ class OrderModel
     private $paymentMethod;
     private $createdAt;
     private $updatedAt;
-    
+
     private $items = [];
     private $db;
-    
-    public function __construct($id = null, $userId = null, $totalAmount = 0, $status = 'pending', $shippingAddress = '', $shippingCity = '', $shippingState = '', $shippingZip = '', $shippingCountry = '', $paymentMethod = '')
+
+    public function __construct($id = null, $userId = null, $totalAmount = 0, $status = 'pending', $shippingAddress = '', $shippingCity = '', $shippingState = '', $shippingZip = '', $shippingCountry = '', $paymentMethod = '', $createdAt = null, $updatedAt = null)
     {
         $this->db = Database::getInstance();
-        
+
         $this->id = $id;
         $this->userId = $userId;
         $this->totalAmount = $totalAmount;
@@ -35,11 +35,13 @@ class OrderModel
         $this->shippingZip = $shippingZip;
         $this->shippingCountry = $shippingCountry;
         $this->paymentMethod = $paymentMethod;
+        $this->createdAt = $createdAt;
+        $this->updatedAt = $updatedAt;
     }
-    
+
     /**
      * Find all orders
-     * 
+     *
      * @param array $filters Optional filters
      * @return array
      */
@@ -47,21 +49,21 @@ class OrderModel
     {
         $sql = "SELECT * FROM orders WHERE 1=1";
         $params = [];
-        
+
         if (!empty($filters['user_id'])) {
             $sql .= " AND user_id = :user_id";
             $params['user_id'] = $filters['user_id'];
         }
-        
+
         if (!empty($filters['status'])) {
             $sql .= " AND status = :status";
             $params['status'] = $filters['status'];
         }
-        
+
         $sql .= " ORDER BY created_at DESC";
-        
+
         $results = $this->db->query($sql)->fetchAll($params);
-        
+
         $orders = [];
         foreach ($results as $row) {
             $order = new OrderModel(
@@ -74,17 +76,19 @@ class OrderModel
                 $row['shipping_state'],
                 $row['shipping_zip'],
                 $row['shipping_country'],
-                $row['payment_method']
+                $row['payment_method'],
+                $row['created_at'],
+                $row['updated_at']
             );
             $orders[] = $order;
         }
-        
+
         return $orders;
     }
-    
+
     /**
      * Find order by ID
-     * 
+     *
      * @param int $id
      * @return OrderModel|null
      */
@@ -92,11 +96,11 @@ class OrderModel
     {
         $sql = "SELECT * FROM orders WHERE id = :id";
         $result = $this->db->query($sql)->fetch(['id' => $id]);
-        
+
         if (!$result) {
             return null;
         }
-        
+
         $order = new OrderModel(
             $result['id'],
             $result['user_id'],
@@ -107,15 +111,17 @@ class OrderModel
             $result['shipping_state'],
             $result['shipping_zip'],
             $result['shipping_country'],
-            $result['payment_method']
+            $result['payment_method'],
+            $result['created_at'],
+            $result['updated_at']
         );
-        
+
         // Load order items
         $order->loadItems();
-        
+
         return $order;
     }
-    
+
     /**
      * Load order items
      */
@@ -124,10 +130,10 @@ class OrderModel
         if (!$this->id) {
             return;
         }
-        
+
         $sql = "SELECT * FROM order_items WHERE order_id = :order_id";
         $results = $this->db->query($sql)->fetchAll(['order_id' => $this->id]);
-        
+
         $this->items = [];
         foreach ($results as $row) {
             $item = new OrderItemModel(
@@ -140,10 +146,10 @@ class OrderModel
             $this->items[] = $item;
         }
     }
-    
+
     /**
      * Save order (insert or update)
-     * 
+     *
      * @return bool
      */
     public function save()
@@ -154,20 +160,20 @@ class OrderModel
             return $this->insert();
         }
     }
-    
+
     /**
      * Insert new order
-     * 
+     *
      * @return bool
      */
     private function insert()
     {
         $this->db->beginTransaction();
-        
+
         try {
-            $sql = "INSERT INTO orders (user_id, total_amount, status, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country, payment_method) 
+            $sql = "INSERT INTO orders (user_id, total_amount, status, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country, payment_method)
                     VALUES (:user_id, :total_amount, :status, :shipping_address, :shipping_city, :shipping_state, :shipping_zip, :shipping_country, :payment_method)";
-            
+
             $result = $this->db->query($sql)->bind([
                 'user_id' => $this->userId,
                 'total_amount' => $this->totalAmount,
@@ -179,13 +185,13 @@ class OrderModel
                 'shipping_country' => $this->shippingCountry,
                 'payment_method' => $this->paymentMethod
             ])->execute();
-            
+
             if (!$result) {
                 throw new Exception("Failed to insert order");
             }
-            
+
             $this->id = $this->db->lastInsertId();
-            
+
             // Save order items
             foreach ($this->items as $item) {
                 $item->setOrderId($this->id);
@@ -193,7 +199,7 @@ class OrderModel
                     throw new Exception("Failed to insert order item");
                 }
             }
-            
+
             $this->db->commit();
             return true;
         } catch (Exception $e) {
@@ -201,26 +207,26 @@ class OrderModel
             return false;
         }
     }
-    
+
     /**
      * Update existing order
-     * 
+     *
      * @return bool
      */
     private function update()
     {
-        $sql = "UPDATE orders 
-                SET user_id = :user_id, 
-                    total_amount = :total_amount, 
-                    status = :status, 
-                    shipping_address = :shipping_address, 
-                    shipping_city = :shipping_city, 
-                    shipping_state = :shipping_state, 
-                    shipping_zip = :shipping_zip, 
-                    shipping_country = :shipping_country, 
-                    payment_method = :payment_method 
+        $sql = "UPDATE orders
+                SET user_id = :user_id,
+                    total_amount = :total_amount,
+                    status = :status,
+                    shipping_address = :shipping_address,
+                    shipping_city = :shipping_city,
+                    shipping_state = :shipping_state,
+                    shipping_zip = :shipping_zip,
+                    shipping_country = :shipping_country,
+                    payment_method = :payment_method
                 WHERE id = :id";
-        
+
         return $this->db->query($sql)->bind([
             'id' => $this->id,
             'user_id' => $this->userId,
@@ -234,10 +240,10 @@ class OrderModel
             'payment_method' => $this->paymentMethod
         ])->execute();
     }
-    
+
     /**
      * Delete order
-     * 
+     *
      * @return bool
      */
     public function delete()
@@ -245,14 +251,14 @@ class OrderModel
         if (!$this->id) {
             return false;
         }
-        
+
         $sql = "DELETE FROM orders WHERE id = :id";
         return $this->db->query($sql)->bind(['id' => $this->id])->execute();
     }
-    
+
     /**
      * Add item to order
-     * 
+     *
      * @param OrderItemModel $item
      */
     public function addItem(OrderItemModel $item)
@@ -260,7 +266,7 @@ class OrderModel
         $this->items[] = $item;
         $this->recalculateTotal();
     }
-    
+
     /**
      * Recalculate order total
      */
@@ -272,204 +278,224 @@ class OrderModel
         }
         $this->totalAmount = $total;
     }
-    
+
     /**
      * Get order ID
-     * 
+     *
      * @return int|null
      */
     public function getId()
     {
         return $this->id;
     }
-    
+
     /**
      * Get user ID
-     * 
+     *
      * @return int|null
      */
     public function getUserId()
     {
         return $this->userId;
     }
-    
+
     /**
      * Set user ID
-     * 
+     *
      * @param int $userId
      */
     public function setUserId($userId)
     {
         $this->userId = $userId;
     }
-    
+
     /**
      * Get total amount
-     * 
+     *
      * @return float
      */
     public function getTotalAmount()
     {
         return $this->totalAmount;
     }
-    
+
     /**
      * Set total amount
-     * 
+     *
      * @param float $totalAmount
      */
     public function setTotalAmount($totalAmount)
     {
         $this->totalAmount = $totalAmount;
     }
-    
+
     /**
      * Get status
-     * 
+     *
      * @return string
      */
     public function getStatus()
     {
         return $this->status;
     }
-    
+
     /**
      * Set status
-     * 
+     *
      * @param string $status
      */
     public function setStatus($status)
     {
         $this->status = $status;
     }
-    
+
     /**
      * Get shipping address
-     * 
+     *
      * @return string
      */
     public function getShippingAddress()
     {
         return $this->shippingAddress;
     }
-    
+
     /**
      * Set shipping address
-     * 
+     *
      * @param string $shippingAddress
      */
     public function setShippingAddress($shippingAddress)
     {
         $this->shippingAddress = $shippingAddress;
     }
-    
+
     /**
      * Get shipping city
-     * 
+     *
      * @return string
      */
     public function getShippingCity()
     {
         return $this->shippingCity;
     }
-    
+
     /**
      * Set shipping city
-     * 
+     *
      * @param string $shippingCity
      */
     public function setShippingCity($shippingCity)
     {
         $this->shippingCity = $shippingCity;
     }
-    
+
     /**
      * Get shipping state
-     * 
+     *
      * @return string
      */
     public function getShippingState()
     {
         return $this->shippingState;
     }
-    
+
     /**
      * Set shipping state
-     * 
+     *
      * @param string $shippingState
      */
     public function setShippingState($shippingState)
     {
         $this->shippingState = $shippingState;
     }
-    
+
     /**
      * Get shipping zip
-     * 
+     *
      * @return string
      */
     public function getShippingZip()
     {
         return $this->shippingZip;
     }
-    
+
     /**
      * Set shipping zip
-     * 
+     *
      * @param string $shippingZip
      */
     public function setShippingZip($shippingZip)
     {
         $this->shippingZip = $shippingZip;
     }
-    
+
     /**
      * Get shipping country
-     * 
+     *
      * @return string
      */
     public function getShippingCountry()
     {
         return $this->shippingCountry;
     }
-    
+
     /**
      * Set shipping country
-     * 
+     *
      * @param string $shippingCountry
      */
     public function setShippingCountry($shippingCountry)
     {
         $this->shippingCountry = $shippingCountry;
     }
-    
+
     /**
      * Get payment method
-     * 
+     *
      * @return string
      */
     public function getPaymentMethod()
     {
         return $this->paymentMethod;
     }
-    
+
     /**
      * Set payment method
-     * 
+     *
      * @param string $paymentMethod
      */
     public function setPaymentMethod($paymentMethod)
     {
         $this->paymentMethod = $paymentMethod;
     }
-    
+
     /**
      * Get order items
-     * 
+     *
      * @return array
      */
     public function getItems()
     {
         return $this->items;
+    }
+
+    /**
+     * Get created at timestamp
+     *
+     * @return string
+     */
+    public function getCreatedAt()
+    {
+        return $this->createdAt;
+    }
+
+    /**
+     * Get updated at timestamp
+     *
+     * @return string
+     */
+    public function getUpdatedAt()
+    {
+        return $this->updatedAt;
     }
 }
