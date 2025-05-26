@@ -19,7 +19,7 @@ class ProductModel{
 
     private $db;
 
-    public function __construct($ID = null, $Name = '', $Description = '', $Price = 0, $Status = 'Scoping', $InventoryCount = 45, $IncomingCount = 0, $OutOfStock = 11, $Grade = 'A', $Image = '', $CategoryID = null){
+    public function __construct($ID = null, $Name = '', $Description = '', $Price = 0, $Status = 'active', $InventoryCount = 0, $IncomingCount = 0, $OutOfStock = 0, $Grade = 'A', $Image = '', $CategoryID = null){
         $this->db = Database::getInstance();
 
         $this->ID = $ID;
@@ -114,7 +114,14 @@ class ProductModel{
             }
         }
 
+        // Debug: Log the SQL query and parameters
+        error_log("ProductModel::findAll SQL: " . $sql);
+        error_log("ProductModel::findAll Params: " . print_r($params, true));
+
         $results = $this->db->query($sql)->fetchAll($params);
+
+        // Debug: Log the number of results
+        error_log("ProductModel::findAll Results count: " . count($results));
 
         $products = [];
         foreach ($results as $row) {

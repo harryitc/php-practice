@@ -26,6 +26,24 @@ if ($isAdmin) {
 
 <?php if ($isAdmin): ?>
 <!-- ADMIN VIEW -->
+
+<!-- Success/Error Messages -->
+<?php if (isset($_SESSION['success_message'])): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i><?php echo htmlspecialchars($_SESSION['success_message']); ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php unset($_SESSION['success_message']); ?>
+<?php endif; ?>
+
+<?php if (isset($_SESSION['error_message'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i><?php echo htmlspecialchars($_SESSION['error_message']); ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php unset($_SESSION['error_message']); ?>
+<?php endif; ?>
+
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
@@ -38,8 +56,8 @@ if ($isAdmin) {
                 <form method="GET" action="/Product/list" class="row g-3">
                     <div class="col-md-4">
                         <label for="search" class="form-label">Search Products</label>
-                        <input type="text" class="form-control" id="search" name="search" 
-                               value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>" 
+                        <input type="text" class="form-control" id="search" name="search"
+                               value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>"
                                placeholder="Search by name or description...">
                     </div>
                     <div class="col-md-3">
@@ -48,7 +66,7 @@ if ($isAdmin) {
                             <option value="">All Categories</option>
                             <?php if (!empty($categories)): ?>
                                 <?php foreach ($categories as $category): ?>
-                                    <option value="<?php echo $category->getID(); ?>" 
+                                    <option value="<?php echo $category->getID(); ?>"
                                             <?php echo (($_GET['category'] ?? '') == $category->getID()) ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($category->getName()); ?>
                                     </option>
@@ -113,11 +131,11 @@ if ($isAdmin) {
                         <td>
                             <div class="d-flex align-items-center">
                                 <?php if (!empty($product->getImage())): ?>
-                                    <img src="<?php echo htmlspecialchars($product->getImage()); ?>" 
-                                         alt="<?php echo htmlspecialchars($product->getName()); ?>" 
+                                    <img src="<?php echo htmlspecialchars($product->getImage()); ?>"
+                                         alt="<?php echo htmlspecialchars($product->getName()); ?>"
                                          class="rounded me-3" style="width: 50px; height: 50px; object-fit: cover;">
                                 <?php else: ?>
-                                    <div class="bg-light rounded me-3 d-flex align-items-center justify-content-center" 
+                                    <div class="bg-light rounded me-3 d-flex align-items-center justify-content-center"
                                          style="width: 50px; height: 50px;">
                                         <i class="bi bi-image text-muted"></i>
                                     </div>
@@ -129,11 +147,11 @@ if ($isAdmin) {
                             </div>
                         </td>
                         <td>
-                            <?php 
+                            <?php
                             $category = null;
                             if (!empty($categories)) {
                                 foreach ($categories as $cat) {
-                                    if ($cat->getID() == $product->getCategoryId()) {
+                                    if ($cat->getID() == $product->getCategoryID()) {
                                         $category = $cat;
                                         break;
                                     }
@@ -157,7 +175,12 @@ if ($isAdmin) {
                                 <span class="badge bg-secondary">Inactive</span>
                             <?php endif; ?>
                         </td>
-                        <td><?php echo date('M j, Y', strtotime($product->getCreatedAt())); ?></td>
+                        <td>
+                            <?php
+                            // For now, show product ID as created date is not available
+                            echo "ID: " . $product->getID();
+                            ?>
+                        </td>
                         <td class="text-center">
                             <div class="btn-group" role="group">
                                 <a href="/Product/detail/<?php echo $product->getID(); ?>" class="btn btn-sm btn-outline-info" title="View">
@@ -166,7 +189,7 @@ if ($isAdmin) {
                                 <a href="/Product/edit/<?php echo $product->getID(); ?>" class="btn btn-sm btn-outline-warning" title="Edit">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                <button type="button" class="btn btn-sm btn-outline-danger"
                                         onclick="deleteProduct(<?php echo $product->getID(); ?>)" title="Delete">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -193,13 +216,29 @@ if ($isAdmin) {
 <?php else: ?>
 <!-- CUSTOMER VIEW -->
 <div class="container">
+    <!-- Success/Error Messages -->
+    <?php if (isset($_SESSION['success_message'])): ?>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i><?php echo htmlspecialchars($_SESSION['success_message']); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php unset($_SESSION['success_message']); ?>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['error_message'])): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i><?php echo htmlspecialchars($_SESSION['error_message']); ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php unset($_SESSION['error_message']); ?>
+    <?php endif; ?>
     <!-- Search and Filters -->
     <div class="category-filter">
         <form method="GET" action="/Product/list" class="row g-3">
             <div class="col-md-6">
                 <div class="input-group">
-                    <input type="text" class="form-control search-box" name="search" 
-                           value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>" 
+                    <input type="text" class="form-control search-box" name="search"
+                           value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>"
                            placeholder="Search products...">
                     <button class="btn btn-primary" type="submit">
                         <i class="bi bi-search"></i>
@@ -211,7 +250,7 @@ if ($isAdmin) {
                     <option value="">All Categories</option>
                     <?php if (!empty($categories)): ?>
                         <?php foreach ($categories as $category): ?>
-                            <option value="<?php echo $category->getID(); ?>" 
+                            <option value="<?php echo $category->getID(); ?>"
                                     <?php echo (($_GET['category'] ?? '') == $category->getID()) ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($category->getName()); ?>
                             </option>
@@ -238,22 +277,22 @@ if ($isAdmin) {
         <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
             <div class="card product-card h-100">
                 <?php if (!empty($product->getImage())): ?>
-                    <img src="<?php echo htmlspecialchars($product->getImage()); ?>" 
-                         class="card-img-top product-image" 
+                    <img src="<?php echo htmlspecialchars($product->getImage()); ?>"
+                         class="card-img-top product-image"
                          alt="<?php echo htmlspecialchars($product->getName()); ?>">
                 <?php else: ?>
-                    <img src="https://via.placeholder.com/300x200/f8f9fa/6c757d?text=No+Image" 
-                         class="card-img-top product-image" 
+                    <img src="https://via.placeholder.com/300x200/f8f9fa/6c757d?text=No+Image"
+                         class="card-img-top product-image"
                          alt="No Image">
                 <?php endif; ?>
-                
+
                 <div class="card-body d-flex flex-column">
                     <h5 class="card-title"><?php echo htmlspecialchars($product->getName()); ?></h5>
                     <p class="card-text text-muted flex-grow-1">
                         <?php echo htmlspecialchars(substr($product->getDescription(), 0, 100)); ?>
                         <?php if (strlen($product->getDescription()) > 100): ?>...<?php endif; ?>
                     </p>
-                    
+
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <span class="price-tag">$<?php echo number_format($product->getPrice(), 2); ?></span>
                         <?php if ($product->getInventoryCount() > 0): ?>
@@ -262,7 +301,7 @@ if ($isAdmin) {
                             <span class="status-badge status-out-of-stock">Out of Stock</span>
                         <?php endif; ?>
                     </div>
-                    
+
                     <div class="d-grid gap-2">
                         <?php if ($product->getInventoryCount() > 0): ?>
                             <button class="btn btn-primary" onclick="addToCart(<?php echo $product->getID(); ?>)">
@@ -295,7 +334,7 @@ if ($isAdmin) {
 </div>
 <?php endif; ?>
 
-<?php 
+<?php
 // Include appropriate footer
 if ($isAdmin) {
     include 'app/views/layouts/admin_footer.php';
@@ -310,7 +349,7 @@ if ($isAdmin) {
 function selectAll() {
     const selectAllCheckbox = document.getElementById('selectAllCheckbox');
     const checkboxes = document.querySelectorAll('.product-checkbox');
-    
+
     checkboxes.forEach(checkbox => {
         checkbox.checked = selectAllCheckbox.checked;
     });
@@ -321,12 +360,12 @@ function deleteSelected() {
     document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
         selectedProducts.push(checkbox.value);
     });
-    
+
     if (selectedProducts.length === 0) {
         alert('Please select products to delete');
         return;
     }
-    
+
     if (confirm(`Are you sure you want to delete ${selectedProducts.length} product(s)?`)) {
         // Implement bulk delete functionality
         console.log('Delete products:', selectedProducts);

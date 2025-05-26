@@ -49,30 +49,42 @@ class ProductController{
                 'category_id' => $categoryId
             ];
         } else {
-            // Customer view - only show active products
+            // Customer view - show all products (temporarily remove status filter for debugging)
             $perPage = 12;
 
             $filters = [
                 'search' => $search,
-                'status' => 'active', // Only active products for customers
+                // 'status' => 'active', // Temporarily commented out to show all products
                 'category_id' => $categoryId,
                 'sort' => $sort
             ];
         }
 
-        // Get total number of filtered products
-        $totalProducts = $this->productModel->countAll($filters);
-        $totalPages = ceil($totalProducts / $perPage);
+        try {
+            // Get total number of filtered products
+            $totalProducts = $this->productModel->countAll($filters);
+            $totalPages = ceil($totalProducts / $perPage);
 
-        // Ensure page is within valid range
-        if ($page < 1) $page = 1;
-        if ($page > $totalPages && $totalPages > 0) $page = $totalPages;
+            // Ensure page is within valid range
+            if ($page < 1) $page = 1;
+            if ($page > $totalPages && $totalPages > 0) $page = $totalPages;
 
-        // Calculate offset for pagination
-        $offset = ($page - 1) * $perPage;
+            // Calculate offset for pagination
+            $offset = ($page - 1) * $perPage;
 
-        // Get products for current page
-        $products = $this->productModel->findAll($filters, $perPage, $offset);
+            // Get products for current page
+            $products = $this->productModel->findAll($filters, $perPage, $offset);
+        } catch (Exception $e) {
+            // Log the error and show empty results
+            error_log("Product listing error: " . $e->getMessage());
+            $products = [];
+            $totalProducts = 0;
+            $totalPages = 0;
+            $currentPage = 1;
+
+            // Set error message for display
+            $_SESSION['error_message'] = 'Unable to load products. Please try again later.';
+        }
 
         // Get categories for filter dropdown
         $categories = $this->categoryModel->findAll();
