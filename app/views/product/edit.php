@@ -1,39 +1,30 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-4Q6Gf2aSP4eDXB8Miphtr37CMZZQ5oXLH2yaXMJ2w8e2ZtHTl7GptT4jmndRuHDT" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <title>Edit Product</title>
-    <style>
-        html, body {
-            height: 100%;
-            margin: 0;
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-        .content-wrapper {
-            flex: 1 0 auto;
-        }
-        footer {
-            flex-shrink: 0;
-            margin-top: auto !important;
-        }
-        .form-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .error-message {
-            color: #dc3545;
-            margin-top: 5px;
-            font-size: 0.9rem;
-        }
-    </style>
-    <script>
+<?php
+// Set page variables
+$pageTitle = 'Edit Product';
+$currentPage = 'products';
+$breadcrumbs = [
+    ['title' => 'Dashboard', 'url' => '/Order/dashboard'],
+    ['title' => 'Products', 'url' => '/Product/list'],
+    ['title' => 'Edit Product', 'url' => '']
+];
+
+// Include admin header (edit product is only for admins)
+include 'app/views/layouts/admin_header.php';
+?>
+
+<style>
+.form-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+.error-message {
+    color: #dc3545;
+    margin-top: 5px;
+    font-size: 0.9rem;
+}
+</style>
+
+<script>
         function validateForm() {
             let name = document.getElementById('name').value;
             let price = document.getElementById('price').value;
@@ -86,70 +77,14 @@
             field.classList.add('is-invalid');
         }
     </script>
-</head>
-<body class="bg-light">
-    <div class="content-wrapper">
-        <!-- Header -->
-        <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-            <div class="container">
-                <a class="navbar-brand" href="/">Product Inventory Management</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav me-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="/Product/list"><i class="bi bi-list-ul"></i> Products</a>
-                        </li>
-                        <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/Product/add"><i class="bi bi-plus-circle"></i> Add Product</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/Order/dashboard"><i class="bi bi-speedometer2"></i> Admin Dashboard</a>
-                        </li>
-                        <?php endif; ?>
-                    </ul>
-                    <ul class="navbar-nav ms-auto">
-                        <?php if (isset($_SESSION['user_id'])): ?>
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-person-circle me-1"></i> <?php echo htmlspecialchars($_SESSION['user_name']); ?>
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                                <li><a class="dropdown-item" href="/Auth/profile"><i class="bi bi-person me-2"></i>My Profile</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/Auth/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
-                            </ul>
-                        </li>
-                        <?php else: ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/Auth/login"><i class="bi bi-box-arrow-in-right"></i> Login</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/Auth/register"><i class="bi bi-person-plus"></i> Register</a>
-                        </li>
-                        <?php endif; ?>
-                    </ul>
-                </div>
-            </div>
-        </nav>
 
-        <div class="container form-container">
-        <!-- Page Title -->
-        <div class="row mb-4">
-            <div class="col">
-                <h1 class="text-center text-primary"><i class="bi bi-pencil-square"></i> Edit Product</h1>
-            </div>
+<div class="container form-container">
+    <!-- Page Title -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="text-center text-primary"><i class="bi bi-pencil-square"></i> Edit Product</h1>
         </div>
-
-        <!-- Breadcrumb -->
-        <nav aria-label="breadcrumb" class="mb-4">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="/Product/list">Products</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Edit Product</li>
-            </ol>
-        </nav>
+    </div>
 
         <!-- Error Messages -->
         <?php if (!empty($errors)): ?>
@@ -311,45 +246,36 @@
             </div>
         </div>
     </div>
-    </div><!-- End of content-wrapper -->
+</div>
 
-    <!-- Delete Confirmation Modal -->
-    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title" id="deleteModalLabel">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="bi bi-trash text-danger" style="font-size: 3rem;"></i>
                 </div>
-                <div class="modal-body">
-                    <div class="text-center mb-3">
-                        <i class="bi bi-trash text-danger" style="font-size: 3rem;"></i>
-                    </div>
-                    <p class="text-center fs-5">Are you sure you want to delete this product:</p>
-                    <p class="text-center fw-bold fs-4">"<?php echo htmlspecialchars((string)$product->getName(), ENT_QUOTES, 'UTF-8'); ?>"</p>
-                    <p class="text-center text-muted">This action cannot be undone!</p>
-                </div>
-                <div class="modal-footer justify-content-center">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="bi bi-x-circle me-2"></i>Cancel
-                    </button>
-                    <a href="/Product/delete/<?php echo $product->getID(); ?>" class="btn btn-danger">
-                        <i class="bi bi-trash me-2"></i>Confirm Delete
-                    </a>
-                </div>
+                <p class="text-center fs-5">Are you sure you want to delete this product:</p>
+                <p class="text-center fw-bold fs-4">"<?php echo htmlspecialchars((string)$product->getName(), ENT_QUOTES, 'UTF-8'); ?>"</p>
+                <p class="text-center text-muted">This action cannot be undone!</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Cancel
+                </button>
+                <a href="/Product/delete/<?php echo $product->getID(); ?>" class="btn btn-danger">
+                    <i class="bi bi-trash me-2"></i>Confirm Delete
+                </a>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Footer -->
-    <footer class="bg-dark text-white text-center py-3">
-        <div class="container">
-            <p class="mb-0">&copy; <?php echo date('Y'); ?> Product Inventory Management System</p>
-        </div>
-    </footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
-</body>
-</html>
+<?php include 'app/views/layouts/admin_footer.php'; ?>

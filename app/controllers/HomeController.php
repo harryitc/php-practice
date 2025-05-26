@@ -16,7 +16,7 @@ class HomeController
         if (session_status() == PHP_SESSION_NONE) {
             session_start();
         }
-        
+
         $this->db = Database::getInstance();
         $this->productModel = new ProductModel();
         $this->categoryModel = new CategoryModel();
@@ -29,7 +29,7 @@ class HomeController
     {
         // Get featured products (latest 8 products)
         $featuredProducts = $this->getFeaturedProducts(8);
-        
+
         // Get all categories
         $categories = $this->getAllCategories();
 
@@ -44,33 +44,31 @@ class HomeController
      */
     private function getFeaturedProducts($limit = 8)
     {
-        $stmt = $this->db->prepare("
-            SELECT * FROM products 
-            WHERE status = 'active' AND inventory_count > 0 
-            ORDER BY created_at DESC 
-            LIMIT ?
-        ");
-        $stmt->execute([$limit]);
-        
+        $sql = "SELECT * FROM products
+                WHERE status = 'active' AND inventory_count > 0
+                ORDER BY created_at DESC
+                LIMIT ?";
+
+        $results = $this->db->query($sql)->bind([$limit])->fetchAll();
+
         $products = [];
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        foreach ($results as $row) {
             $product = new ProductModel(
-                $row['id'],
-                $row['name'],
-                $row['description'],
-                $row['price'],
-                $row['category_id'],
-                $row['inventory_count'],
-                $row['incoming_count'],
-                $row['image'],
-                $row['status'],
-                $row['grade'],
-                $row['created_at'],
-                $row['updated_at']
+                $row['id'],                    // ID
+                $row['name'],                  // Name
+                $row['description'],           // Description
+                $row['price'],                 // Price
+                $row['status'],                // Status
+                $row['inventory_count'],       // InventoryCount
+                $row['incoming_count'],        // IncomingCount
+                $row['out_of_stock'] ?? 0,     // OutOfStock
+                $row['grade'],                 // Grade
+                $row['image'],                 // Image
+                $row['category_id']            // CategoryID
             );
             $products[] = $product;
         }
-        
+
         return $products;
     }
 
@@ -81,11 +79,11 @@ class HomeController
      */
     private function getAllCategories()
     {
-        $stmt = $this->db->prepare("SELECT * FROM categories ORDER BY name ASC");
-        $stmt->execute();
-        
+        $sql = "SELECT * FROM categories ORDER BY name ASC";
+        $results = $this->db->query($sql)->fetchAll();
+
         $categories = [];
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        foreach ($results as $row) {
             $category = new CategoryModel(
                 $row['id'],
                 $row['name'],
@@ -95,7 +93,7 @@ class HomeController
             );
             $categories[] = $category;
         }
-        
+
         return $categories;
     }
 }

@@ -1,39 +1,30 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-4Q6Gf2aSP4eDXB8Miphtr37CMZZQ5oXLH2yaXMJ2w8e2ZtHTl7GptT4jmndRuHDT" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <title>Add New Product</title>
-    <style>
-        html, body {
-            height: 100%;
-            margin: 0;
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
-        .content-wrapper {
-            flex: 1 0 auto;
-        }
-        footer {
-            flex-shrink: 0;
-            margin-top: auto !important;
-        }
-        .form-container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .error-message {
-            color: #dc3545;
-            margin-top: 5px;
-            font-size: 0.9rem;
-        }
-    </style>
-    <script>
+<?php
+// Set page variables
+$pageTitle = 'Add New Product';
+$currentPage = 'products';
+$breadcrumbs = [
+    ['title' => 'Dashboard', 'url' => '/Order/dashboard'],
+    ['title' => 'Products', 'url' => '/Product/list'],
+    ['title' => 'Add Product', 'url' => '']
+];
+
+// Include admin header (add product is only for admins)
+include 'app/views/layouts/admin_header.php';
+?>
+
+<style>
+.form-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+.error-message {
+    color: #dc3545;
+    margin-top: 5px;
+    font-size: 0.9rem;
+}
+</style>
+
+<script>
         function validateForm() {
             let name = document.getElementById('name').value;
             let price = document.getElementById('price').value;
@@ -86,44 +77,14 @@
             field.classList.add('is-invalid');
         }
     </script>
-</head>
-<body class="bg-light">
-    <div class="content-wrapper">
-        <!-- Header -->
-        <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-            <div class="container">
-                <a class="navbar-brand" href="/">Product Inventory Management</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="/Product/list"><i class="bi bi-list-ul"></i> Products</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="/Product/add"><i class="bi bi-plus-circle"></i> Add Product</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
 
-        <div class="container form-container">
-        <!-- Page Title -->
-        <div class="row mb-4">
-            <div class="col">
-                <h1 class="text-center text-primary"><i class="bi bi-plus-circle"></i> Add New Product</h1>
-            </div>
+<div class="container form-container">
+    <!-- Page Title -->
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="text-center text-primary"><i class="bi bi-plus-circle"></i> Add New Product</h1>
         </div>
-
-        <!-- Breadcrumb -->
-        <nav aria-label="breadcrumb" class="mb-4">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="/Product/list">Products</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Add New Product</li>
-            </ol>
-        </nav>
+    </div>
 
         <!-- Error Messages -->
         <?php if (!empty($errors)): ?>
@@ -243,15 +204,6 @@
             </div>
         </div>
     </div>
-    </div><!-- End of content-wrapper -->
+</div>
 
-    <!-- Footer -->
-    <footer class="bg-dark text-white text-center py-3">
-        <div class="container">
-            <p class="mb-0">&copy; <?php echo date('Y'); ?> Product Inventory Management System</p>
-        </div>
-    </footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
-</body>
-</html>
+<?php include 'app/views/layouts/admin_footer.php'; ?>
