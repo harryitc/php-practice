@@ -77,8 +77,33 @@ class ProductModel{
             $params['category_id'] = $filters['category_id'];
         }
 
-        // Add ordering
-        $sql .= " ORDER BY id DESC";
+        // Add sorting for customer view
+        if (!empty($filters['sort'])) {
+            switch ($filters['sort']) {
+                case 'name_asc':
+                    $sql .= " ORDER BY name ASC";
+                    break;
+                case 'name_desc':
+                    $sql .= " ORDER BY name DESC";
+                    break;
+                case 'price_asc':
+                    $sql .= " ORDER BY price ASC";
+                    break;
+                case 'price_desc':
+                    $sql .= " ORDER BY price DESC";
+                    break;
+                case 'newest':
+                    $sql .= " ORDER BY created_at DESC";
+                    break;
+                case 'oldest':
+                    $sql .= " ORDER BY created_at ASC";
+                    break;
+                default:
+                    $sql .= " ORDER BY id DESC";
+            }
+        } else {
+            $sql .= " ORDER BY id DESC";
+        }
 
         // Add limit and offset
         if ($limit !== null) {

@@ -56,7 +56,7 @@ class OrderController
         $totalCustomers = $this->countCustomers();
 
         // Get recent orders
-        $recentOrders = $this->getRecentOrders(5);
+        $recentOrders = $this->getRecentOrders(10);
 
         // Include the dashboard view
         include 'app/views/admin/dashboard.php';
@@ -684,4 +684,6 @@ class OrderController
 
         include 'app/views/order/view.php';
     }
+
+
 }

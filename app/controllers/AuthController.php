@@ -294,4 +294,140 @@ class AuthController
         // Display profile form
         include 'app/views/auth/profile.php';
     }
+
+    /**
+     * Update user profile information
+     */
+    public function updateProfile()
+    {
+        // Require login
+        $this->requireLogin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: /Auth/profile');
+            exit();
+        }
+
+        // Get user data
+        $user = $this->userModel->findById($_SESSION['user_id']);
+
+        if (!$user) {
+            $_SESSION['error_message'] = 'User not found';
+            header('Location: /Auth/profile');
+            exit();
+        }
+
+        // Get form data
+        $name = trim($_POST['name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
+
+        $errors = [];
+
+        // Validate input
+        if (empty($name)) {
+            $errors[] = 'Name is required';
+        } elseif (strlen($name) < 2 || strlen($name) > 100) {
+            $errors[] = 'Name must be between 2 and 100 characters';
+        }
+
+        if (empty($email)) {
+            $errors[] = 'Email is required';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = 'Please enter a valid email address';
+        } else {
+            // Check if email is already taken by another user
+            $existingUser = $this->userModel->findByEmail($email);
+            if ($existingUser && $existingUser->getId() !== $user->getId()) {
+                $errors[] = 'Email address is already taken';
+            }
+        }
+
+        // If no validation errors, update user
+        if (empty($errors)) {
+            $user->setName($name);
+            $user->setEmail($email);
+
+            if ($user->save()) {
+                // Update session data
+                $_SESSION['user_name'] = $user->getName();
+
+                // Set success message
+                $_SESSION['success_message'] = 'Profile updated successfully';
+            } else {
+                $_SESSION['error_message'] = 'Failed to update profile. Please try again.';
+            }
+        } else {
+            $_SESSION['error_message'] = implode('<br>', $errors);
+        }
+
+        // Redirect back to profile page
+        header('Location: /Auth/profile');
+        exit();
+    }
+
+    /**
+     * Change user password
+     */
+    public function changePassword()
+    {
+        // Require login
+        $this->requireLogin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: /Auth/profile');
+            exit();
+        }
+
+        // Get user data
+        $user = $this->userModel->findById($_SESSION['user_id']);
+
+        if (!$user) {
+            $_SESSION['error_message'] = 'User not found';
+            header('Location: /Auth/profile');
+            exit();
+        }
+
+        // Get form data
+        $currentPassword = $_POST['current_password'] ?? '';
+        $newPassword = $_POST['new_password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+
+        $errors = [];
+
+        // Validate input
+        if (empty($currentPassword)) {
+            $errors[] = 'Current password is required';
+        } elseif (!$user->verifyPassword($currentPassword)) {
+            $errors[] = 'Current password is incorrect';
+        }
+
+        if (empty($newPassword)) {
+            $errors[] = 'New password is required';
+        } elseif (strlen($newPassword) < 6) {
+            $errors[] = 'New password must be at least 6 characters long';
+        }
+
+        if (empty($confirmPassword)) {
+            $errors[] = 'Password confirmation is required';
+        } elseif ($newPassword !== $confirmPassword) {
+            $errors[] = 'New password and confirmation do not match';
+        }
+
+        // If no validation errors, update password
+        if (empty($errors)) {
+            $user->setPassword($newPassword);
+
+            if ($user->save()) {
+                $_SESSION['success_message'] = 'Password changed successfully';
+            } else {
+                $_SESSION['error_message'] = 'Failed to change password. Please try again.';
+            }
+        } else {
+            $_SESSION['error_message'] = implode('<br>', $errors);
+        }
+
+        // Redirect back to profile page
+        header('Location: /Auth/profile');
+        exit();
+    }
 }

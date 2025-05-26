@@ -27,21 +27,38 @@ class ProductController{
         // Get query parameters
         $search = $_GET['search'] ?? '';
         $search = trim($search);
-        $status = $_GET['status'] ?? '';
-        $grade = $_GET['grade'] ?? '';
-        $inventory = $_GET['inventory'] ?? '';
-        $categoryId = $_GET['category_id'] ?? '';
+        $categoryId = $_GET['category'] ?? '';
+        $sort = $_GET['sort'] ?? '';
         $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-        $perPage = 5; // Number of products per page
 
-        // Create filters array
-        $filters = [
-            'search' => $search,
-            'status' => $status,
-            'grade' => $grade,
-            'inventory' => $inventory,
-            'category_id' => $categoryId
-        ];
+        // Check if user is admin
+        $isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
+
+        if ($isAdmin) {
+            // Admin view - show all products with admin filters
+            $status = $_GET['status'] ?? '';
+            $grade = $_GET['grade'] ?? '';
+            $inventory = $_GET['inventory'] ?? '';
+            $perPage = 10;
+
+            $filters = [
+                'search' => $search,
+                'status' => $status,
+                'grade' => $grade,
+                'inventory' => $inventory,
+                'category_id' => $categoryId
+            ];
+        } else {
+            // Customer view - only show active products
+            $perPage = 12;
+
+            $filters = [
+                'search' => $search,
+                'status' => 'active', // Only active products for customers
+                'category_id' => $categoryId,
+                'sort' => $sort
+            ];
+        }
 
         // Get total number of filtered products
         $totalProducts = $this->productModel->countAll($filters);
@@ -57,19 +74,25 @@ class ProductController{
         // Get products for current page
         $products = $this->productModel->findAll($filters, $perPage, $offset);
 
-        // Get unique statuses and grades for filter dropdowns
-        $statuses = $this->productModel->getUniqueValues('status');
-        $grades = $this->productModel->getUniqueValues('grade');
-
         // Get categories for filter dropdown
         $categories = $this->categoryModel->findAll();
 
-        // Make variables available to the view
-        $currentPage = $page;
-        $selectedStatus = $status;
-        $selectedGrade = $grade;
-        $selectedInventory = $inventory;
-        $selectedCategoryId = $categoryId;
+        if ($isAdmin) {
+            // Admin specific data
+            $statuses = $this->productModel->getUniqueValues('status');
+            $grades = $this->productModel->getUniqueValues('grade');
+
+            $currentPage = $page;
+            $selectedStatus = $status;
+            $selectedGrade = $grade;
+            $selectedInventory = $inventory;
+            $selectedCategoryId = $categoryId;
+        } else {
+            // Customer specific data
+            $currentPage = $page;
+            $selectedCategoryId = $categoryId;
+            $selectedSort = $sort;
+        }
 
         include 'app/views/product/list.php';
     }
