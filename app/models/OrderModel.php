@@ -2,23 +2,47 @@
 
 require_once 'app/core/Database.php';
 require_once 'app/models/OrderItemModel.php';
+require_once 'app/models/OrderStatusHistoryModel.php';
+require_once 'app/models/OrderTrackingModel.php';
+require_once 'app/models/OrderNotesModel.php';
 
 class OrderModel
 {
     private $id;
+    private $orderNumber;
     private $userId;
     private $totalAmount;
+    private $taxAmount;
+    private $shippingAmount;
+    private $discountAmount;
     private $status;
+    private $paymentStatus;
     private $shippingAddress;
     private $shippingCity;
     private $shippingState;
     private $shippingZip;
     private $shippingCountry;
+    private $billingAddress;
+    private $billingCity;
+    private $billingState;
+    private $billingZip;
+    private $billingCountry;
     private $paymentMethod;
+    private $trackingNumber;
+    private $carrier;
+    private $estimatedDeliveryDate;
+    private $actualDeliveryDate;
+    private $priority;
+    private $source;
+    private $notes;
+    private $internalNotes;
     private $createdAt;
     private $updatedAt;
 
     private $items = [];
+    private $statusHistory = [];
+    private $trackingHistory = [];
+    private $orderNotes = [];
     private $db;
 
     public function __construct($id = null, $userId = null, $totalAmount = 0, $status = 'pending', $shippingAddress = '', $shippingCity = '', $shippingState = '', $shippingZip = '', $shippingCountry = '', $paymentMethod = '', $createdAt = null, $updatedAt = null)
@@ -26,15 +50,22 @@ class OrderModel
         $this->db = Database::getInstance();
 
         $this->id = $id;
+        $this->orderNumber = $this->generateOrderNumber();
         $this->userId = $userId;
         $this->totalAmount = $totalAmount;
+        $this->taxAmount = 0;
+        $this->shippingAmount = 0;
+        $this->discountAmount = 0;
         $this->status = $status;
+        $this->paymentStatus = 'pending';
         $this->shippingAddress = $shippingAddress;
         $this->shippingCity = $shippingCity;
         $this->shippingState = $shippingState;
         $this->shippingZip = $shippingZip;
         $this->shippingCountry = $shippingCountry;
         $this->paymentMethod = $paymentMethod;
+        $this->priority = 'normal';
+        $this->source = 'website';
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
     }
@@ -80,6 +111,20 @@ class OrderModel
                 $row['created_at'],
                 $row['updated_at']
             );
+            // Set additional properties
+            $order->setOrderNumber($row['order_number'] ?? '');
+            $order->setTaxAmount($row['tax_amount'] ?? 0);
+            $order->setShippingAmount($row['shipping_amount'] ?? 0);
+            $order->setDiscountAmount($row['discount_amount'] ?? 0);
+            $order->setPaymentStatus($row['payment_status'] ?? 'pending');
+            $order->setTrackingNumber($row['tracking_number'] ?? '');
+            $order->setCarrier($row['carrier'] ?? '');
+            $order->setEstimatedDeliveryDate($row['estimated_delivery_date'] ?? null);
+            $order->setActualDeliveryDate($row['actual_delivery_date'] ?? null);
+            $order->setPriority($row['priority'] ?? 'normal');
+            $order->setSource($row['source'] ?? 'website');
+            $order->setNotes($row['notes'] ?? '');
+            $order->setInternalNotes($row['internal_notes'] ?? '');
             $orders[] = $order;
         }
 
@@ -115,6 +160,21 @@ class OrderModel
             $result['created_at'],
             $result['updated_at']
         );
+
+        // Set additional properties
+        $order->setOrderNumber($result['order_number'] ?? '');
+        $order->setTaxAmount($result['tax_amount'] ?? 0);
+        $order->setShippingAmount($result['shipping_amount'] ?? 0);
+        $order->setDiscountAmount($result['discount_amount'] ?? 0);
+        $order->setPaymentStatus($result['payment_status'] ?? 'pending');
+        $order->setTrackingNumber($result['tracking_number'] ?? '');
+        $order->setCarrier($result['carrier'] ?? '');
+        $order->setEstimatedDeliveryDate($result['estimated_delivery_date'] ?? null);
+        $order->setActualDeliveryDate($result['actual_delivery_date'] ?? null);
+        $order->setPriority($result['priority'] ?? 'normal');
+        $order->setSource($result['source'] ?? 'website');
+        $order->setNotes($result['notes'] ?? '');
+        $order->setInternalNotes($result['internal_notes'] ?? '');
 
         // Load order items
         $order->loadItems();
@@ -171,19 +231,36 @@ class OrderModel
         $this->db->beginTransaction();
 
         try {
-            $sql = "INSERT INTO orders (user_id, total_amount, status, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country, payment_method)
-                    VALUES (:user_id, :total_amount, :status, :shipping_address, :shipping_city, :shipping_state, :shipping_zip, :shipping_country, :payment_method)";
+            $sql = "INSERT INTO orders (order_number, user_id, total_amount, tax_amount, shipping_amount, discount_amount, status, payment_status, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country, billing_address, billing_city, billing_state, billing_zip, billing_country, payment_method, tracking_number, carrier, estimated_delivery_date, priority, source, notes, internal_notes)
+                    VALUES (:order_number, :user_id, :total_amount, :tax_amount, :shipping_amount, :discount_amount, :status, :payment_status, :shipping_address, :shipping_city, :shipping_state, :shipping_zip, :shipping_country, :billing_address, :billing_city, :billing_state, :billing_zip, :billing_country, :payment_method, :tracking_number, :carrier, :estimated_delivery_date, :priority, :source, :notes, :internal_notes)";
 
             $result = $this->db->query($sql)->bind([
+                'order_number' => $this->orderNumber,
                 'user_id' => $this->userId,
                 'total_amount' => $this->totalAmount,
+                'tax_amount' => $this->taxAmount,
+                'shipping_amount' => $this->shippingAmount,
+                'discount_amount' => $this->discountAmount,
                 'status' => $this->status,
+                'payment_status' => $this->paymentStatus,
                 'shipping_address' => $this->shippingAddress,
                 'shipping_city' => $this->shippingCity,
                 'shipping_state' => $this->shippingState,
                 'shipping_zip' => $this->shippingZip,
                 'shipping_country' => $this->shippingCountry,
-                'payment_method' => $this->paymentMethod
+                'billing_address' => $this->billingAddress,
+                'billing_city' => $this->billingCity,
+                'billing_state' => $this->billingState,
+                'billing_zip' => $this->billingZip,
+                'billing_country' => $this->billingCountry,
+                'payment_method' => $this->paymentMethod,
+                'tracking_number' => $this->trackingNumber,
+                'carrier' => $this->carrier,
+                'estimated_delivery_date' => $this->estimatedDeliveryDate,
+                'priority' => $this->priority,
+                'source' => $this->source,
+                'notes' => $this->notes,
+                'internal_notes' => $this->internalNotes
             ])->execute();
 
             if (!$result) {
@@ -216,28 +293,64 @@ class OrderModel
     private function update()
     {
         $sql = "UPDATE orders
-                SET user_id = :user_id,
+                SET order_number = :order_number,
+                    user_id = :user_id,
                     total_amount = :total_amount,
+                    tax_amount = :tax_amount,
+                    shipping_amount = :shipping_amount,
+                    discount_amount = :discount_amount,
                     status = :status,
+                    payment_status = :payment_status,
                     shipping_address = :shipping_address,
                     shipping_city = :shipping_city,
                     shipping_state = :shipping_state,
                     shipping_zip = :shipping_zip,
                     shipping_country = :shipping_country,
-                    payment_method = :payment_method
+                    billing_address = :billing_address,
+                    billing_city = :billing_city,
+                    billing_state = :billing_state,
+                    billing_zip = :billing_zip,
+                    billing_country = :billing_country,
+                    payment_method = :payment_method,
+                    tracking_number = :tracking_number,
+                    carrier = :carrier,
+                    estimated_delivery_date = :estimated_delivery_date,
+                    actual_delivery_date = :actual_delivery_date,
+                    priority = :priority,
+                    source = :source,
+                    notes = :notes,
+                    internal_notes = :internal_notes
                 WHERE id = :id";
 
         return $this->db->query($sql)->bind([
             'id' => $this->id,
+            'order_number' => $this->orderNumber,
             'user_id' => $this->userId,
             'total_amount' => $this->totalAmount,
+            'tax_amount' => $this->taxAmount,
+            'shipping_amount' => $this->shippingAmount,
+            'discount_amount' => $this->discountAmount,
             'status' => $this->status,
+            'payment_status' => $this->paymentStatus,
             'shipping_address' => $this->shippingAddress,
             'shipping_city' => $this->shippingCity,
             'shipping_state' => $this->shippingState,
             'shipping_zip' => $this->shippingZip,
             'shipping_country' => $this->shippingCountry,
-            'payment_method' => $this->paymentMethod
+            'billing_address' => $this->billingAddress,
+            'billing_city' => $this->billingCity,
+            'billing_state' => $this->billingState,
+            'billing_zip' => $this->billingZip,
+            'billing_country' => $this->billingCountry,
+            'payment_method' => $this->paymentMethod,
+            'tracking_number' => $this->trackingNumber,
+            'carrier' => $this->carrier,
+            'estimated_delivery_date' => $this->estimatedDeliveryDate,
+            'actual_delivery_date' => $this->actualDeliveryDate,
+            'priority' => $this->priority,
+            'source' => $this->source,
+            'notes' => $this->notes,
+            'internal_notes' => $this->internalNotes
         ])->execute();
     }
 
@@ -346,7 +459,20 @@ class OrderModel
      */
     public function setStatus($status)
     {
+        $oldStatus = $this->status;
         $this->status = $status;
+
+        // Record status change in history if order exists
+        if ($this->id && $oldStatus !== $status) {
+            OrderStatusHistoryModel::createStatusChange($this->id, $oldStatus, $status, $_SESSION['user_id'] ?? null);
+
+            // Send notification for status change
+            if (file_exists('app/services/NotificationService.php')) {
+                require_once 'app/services/NotificationService.php';
+                $notificationService = new NotificationService();
+                $notificationService->sendOrderStatusUpdate($this, $oldStatus, $status);
+            }
+        }
     }
 
     /**
@@ -497,5 +623,197 @@ class OrderModel
     public function getUpdatedAt()
     {
         return $this->updatedAt;
+    }
+
+    // New getters for enhanced order tracking
+    public function getOrderNumber() { return $this->orderNumber; }
+    public function getTaxAmount() { return $this->taxAmount; }
+    public function getShippingAmount() { return $this->shippingAmount; }
+    public function getDiscountAmount() { return $this->discountAmount; }
+    public function getPaymentStatus() { return $this->paymentStatus; }
+    public function getBillingAddress() { return $this->billingAddress; }
+    public function getBillingCity() { return $this->billingCity; }
+    public function getBillingState() { return $this->billingState; }
+    public function getBillingZip() { return $this->billingZip; }
+    public function getBillingCountry() { return $this->billingCountry; }
+    public function getTrackingNumber() { return $this->trackingNumber; }
+    public function getCarrier() { return $this->carrier; }
+    public function getEstimatedDeliveryDate() { return $this->estimatedDeliveryDate; }
+    public function getActualDeliveryDate() { return $this->actualDeliveryDate; }
+    public function getPriority() { return $this->priority; }
+    public function getSource() { return $this->source; }
+    public function getNotes() { return $this->notes; }
+    public function getInternalNotes() { return $this->internalNotes; }
+    public function getStatusHistory() { return $this->statusHistory; }
+    public function getTrackingHistory() { return $this->trackingHistory; }
+    public function getOrderNotes() { return $this->orderNotes; }
+
+    // New setters for enhanced order tracking
+    public function setOrderNumber($orderNumber) { $this->orderNumber = $orderNumber; }
+    public function setTaxAmount($taxAmount) { $this->taxAmount = $taxAmount; }
+    public function setShippingAmount($shippingAmount) { $this->shippingAmount = $shippingAmount; }
+    public function setDiscountAmount($discountAmount) { $this->discountAmount = $discountAmount; }
+    public function setPaymentStatus($paymentStatus) { $this->paymentStatus = $paymentStatus; }
+    public function setBillingAddress($billingAddress) { $this->billingAddress = $billingAddress; }
+    public function setBillingCity($billingCity) { $this->billingCity = $billingCity; }
+    public function setBillingState($billingState) { $this->billingState = $billingState; }
+    public function setBillingZip($billingZip) { $this->billingZip = $billingZip; }
+    public function setBillingCountry($billingCountry) { $this->billingCountry = $billingCountry; }
+    public function setTrackingNumber($trackingNumber) { $this->trackingNumber = $trackingNumber; }
+    public function setCarrier($carrier) { $this->carrier = $carrier; }
+    public function setEstimatedDeliveryDate($estimatedDeliveryDate) { $this->estimatedDeliveryDate = $estimatedDeliveryDate; }
+    public function setActualDeliveryDate($actualDeliveryDate) { $this->actualDeliveryDate = $actualDeliveryDate; }
+    public function setPriority($priority) { $this->priority = $priority; }
+    public function setSource($source) { $this->source = $source; }
+    public function setNotes($notes) { $this->notes = $notes; }
+    public function setInternalNotes($internalNotes) { $this->internalNotes = $internalNotes; }
+
+    /**
+     * Generate unique order number
+     */
+    private function generateOrderNumber()
+    {
+        return 'ORD-' . date('Y') . '-' . str_pad(mt_rand(1, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Load status history
+     */
+    public function loadStatusHistory()
+    {
+        if (!$this->id) {
+            return;
+        }
+        $this->statusHistory = OrderStatusHistoryModel::getByOrderId($this->id);
+    }
+
+    /**
+     * Load tracking history
+     */
+    public function loadTrackingHistory()
+    {
+        if (!$this->id) {
+            return;
+        }
+        $this->trackingHistory = OrderTrackingModel::getByOrderId($this->id);
+    }
+
+    /**
+     * Load order notes
+     */
+    public function loadOrderNotes($visibleToCustomer = null)
+    {
+        if (!$this->id) {
+            return;
+        }
+        $this->orderNotes = OrderNotesModel::getByOrderId($this->id, $visibleToCustomer);
+    }
+
+    /**
+     * Add tracking update
+     */
+    public function addTrackingUpdate($status, $location = null, $description = null, $trackingDate = null)
+    {
+        if (!$this->id) {
+            return false;
+        }
+
+        $tracking = new OrderTrackingModel(
+            null,
+            $this->id,
+            $this->trackingNumber,
+            $this->carrier,
+            $status,
+            $location,
+            $description,
+            $trackingDate ?: date('Y-m-d H:i:s')
+        );
+
+        return $tracking->save();
+    }
+
+    /**
+     * Add order note
+     */
+    public function addNote($content, $userId = null, $noteType = 'internal', $title = null, $isVisibleToCustomer = false, $priority = 'normal')
+    {
+        if (!$this->id) {
+            return false;
+        }
+
+        return OrderNotesModel::addNote($this->id, $content, $userId, $noteType, $title, $isVisibleToCustomer, $priority);
+    }
+
+    /**
+     * Get order summary for display
+     */
+    public function getSummary()
+    {
+        return [
+            'id' => $this->id,
+            'order_number' => $this->orderNumber,
+            'total_amount' => $this->totalAmount,
+            'status' => $this->status,
+            'payment_status' => $this->paymentStatus,
+            'tracking_number' => $this->trackingNumber,
+            'carrier' => $this->carrier,
+            'estimated_delivery' => $this->estimatedDeliveryDate,
+            'created_at' => $this->createdAt
+        ];
+    }
+
+    /**
+     * Check if order can be cancelled
+     */
+    public function canBeCancelled()
+    {
+        return in_array($this->status, ['pending', 'confirmed', 'processing']);
+    }
+
+    /**
+     * Check if order can be returned
+     */
+    public function canBeReturned()
+    {
+        return $this->status === 'delivered' &&
+               $this->actualDeliveryDate &&
+               strtotime($this->actualDeliveryDate) > strtotime('-30 days');
+    }
+
+    /**
+     * Get status display name
+     */
+    public function getStatusDisplayName()
+    {
+        $statusNames = [
+            'pending' => 'Pending',
+            'confirmed' => 'Confirmed',
+            'processing' => 'Processing',
+            'packed' => 'Packed',
+            'shipped' => 'Shipped',
+            'out_for_delivery' => 'Out for Delivery',
+            'delivered' => 'Delivered',
+            'cancelled' => 'Cancelled',
+            'returned' => 'Returned',
+            'refunded' => 'Refunded'
+        ];
+
+        return $statusNames[$this->status] ?? ucfirst($this->status);
+    }
+
+    /**
+     * Get payment status display name
+     */
+    public function getPaymentStatusDisplayName()
+    {
+        $statusNames = [
+            'pending' => 'Pending',
+            'paid' => 'Paid',
+            'failed' => 'Failed',
+            'refunded' => 'Refunded',
+            'partially_refunded' => 'Partially Refunded'
+        ];
+
+        return $statusNames[$this->paymentStatus] ?? ucfirst($this->paymentStatus);
     }
 }

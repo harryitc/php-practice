@@ -327,4 +327,14 @@ class UserModel
     {
         return $this->updatedAt;
     }
+
+    /**
+     * Get username (alias for getName for backward compatibility)
+     *
+     * @return string
+     */
+    public function getUsername()
+    {
+        return $this->name;
+    }
 }

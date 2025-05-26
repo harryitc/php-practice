@@ -10,7 +10,12 @@ $breadcrumbs = [
     ['title' => 'Orders', 'url' => '/Order/list'],
     ['title' => 'Order #' . $order->getId(), 'url' => '']
 ];
-$pageActions = '<a href="/Order/list" class="btn btn-outline-primary"><i class="bi bi-arrow-left me-2"></i>Back to Orders</a>';
+$pageActions = '
+    <a href="/Order/list" class="btn btn-outline-primary me-2"><i class="bi bi-arrow-left me-2"></i>Back to Orders</a>
+    <a href="/Order/adminTimeline/' . $order->getId() . '" class="btn btn-primary me-2"><i class="bi bi-clock-history me-2"></i>Timeline</a>
+    <a href="/Order/adminTracking/' . $order->getId() . '" class="btn btn-info me-2"><i class="bi bi-truck me-2"></i>Tracking</a>
+    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addNoteModal"><i class="bi bi-plus-circle me-2"></i>Add Note</button>
+';
 
 // Include admin header
 include 'app/views/layouts/admin_header.php';
@@ -46,6 +51,12 @@ include 'app/views/layouts/admin_header.php';
                                     <th style="width: 40%">Order ID:</th>
                                     <td>#<?php echo $order->getId(); ?></td>
                                 </tr>
+                                <?php if ($order->getOrderNumber()): ?>
+                                <tr>
+                                    <th>Order Number:</th>
+                                    <td><?php echo htmlspecialchars($order->getOrderNumber()); ?></td>
+                                </tr>
+                                <?php endif; ?>
                                 <tr>
                                     <th>Date:</th>
                                     <td><?php echo date('F d, Y H:i', strtotime($order->getCreatedAt())); ?></td>
@@ -84,6 +95,18 @@ include 'app/views/layouts/admin_header.php';
                                     <th>Total Amount:</th>
                                     <td class="fw-bold">$<?php echo number_format($order->getTotalAmount(), 2); ?></td>
                                 </tr>
+                                <?php if ($order->getTrackingNumber()): ?>
+                                <tr>
+                                    <th>Tracking Number:</th>
+                                    <td><?php echo htmlspecialchars($order->getTrackingNumber()); ?></td>
+                                </tr>
+                                <?php endif; ?>
+                                <?php if ($order->getCarrier()): ?>
+                                <tr>
+                                    <th>Carrier:</th>
+                                    <td><?php echo htmlspecialchars($order->getCarrier()); ?></td>
+                                </tr>
+                                <?php endif; ?>
                             </table>
 
                             <!-- Update Status Form -->
@@ -217,6 +240,154 @@ include 'app/views/layouts/admin_header.php';
                     </div>
                 </div>
             </div>
+
+            <!-- Order Notes and Status History -->
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Order Notes</h5>
+                            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addNoteModal">
+                                <i class="bi bi-plus"></i> Add Note
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <?php
+                            // Load order notes
+                            $order->loadOrderNotes();
+                            $notes = $order->getOrderNotes();
+                            if (empty($notes)):
+                            ?>
+                                <p class="text-muted text-center py-3">No notes available</p>
+                            <?php else: ?>
+                                <div class="notes-list" style="max-height: 400px; overflow-y: auto;">
+                                    <?php foreach ($notes as $note): ?>
+                                        <div class="note-item border-bottom pb-3 mb-3">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <?php if ($note->getTitle()): ?>
+                                                        <h6 class="mb-1"><?= htmlspecialchars($note->getTitle()) ?></h6>
+                                                    <?php endif; ?>
+                                                    <p class="mb-1"><?= nl2br(htmlspecialchars($note->getContent())) ?></p>
+                                                    <small class="text-muted">
+                                                        <?= $note->authorName ?? 'System' ?> •
+                                                        <?= date('M d, Y g:i A', strtotime($note->getCreatedAt())) ?>
+                                                    </small>
+                                                </div>
+                                                <div>
+                                                    <span class="badge bg-<?= $note->getNoteType() === 'internal' ? 'secondary' : 'info' ?>">
+                                                        <?= ucfirst($note->getNoteType()) ?>
+                                                    </span>
+                                                    <?php if ($note->getIsVisibleToCustomer()): ?>
+                                                        <span class="badge bg-success">Visible to Customer</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card shadow-sm">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0">Status History</h5>
+                        </div>
+                        <div class="card-body">
+                            <?php
+                            // Load status history
+                            $order->loadStatusHistory();
+                            $statusHistory = $order->getStatusHistory();
+                            if (empty($statusHistory)):
+                            ?>
+                                <p class="text-muted text-center py-3">No status changes recorded</p>
+                            <?php else: ?>
+                                <div class="status-timeline" style="max-height: 400px; overflow-y: auto;">
+                                    <?php foreach ($statusHistory as $history): ?>
+                                        <div class="timeline-item border-bottom pb-3 mb-3">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <h6 class="mb-1">
+                                                        <?php if ($history->getOldStatus()): ?>
+                                                            <span class="text-muted"><?= ucfirst($history->getOldStatus()) ?></span>
+                                                            <i class="bi bi-arrow-right mx-2"></i>
+                                                        <?php endif; ?>
+                                                        <span class="text-primary"><?= ucfirst($history->getNewStatus()) ?></span>
+                                                    </h6>
+                                                    <?php if ($history->getChangeReason()): ?>
+                                                        <p class="mb-1 text-muted"><?= htmlspecialchars($history->getChangeReason()) ?></p>
+                                                    <?php endif; ?>
+                                                    <?php if ($history->getNotes()): ?>
+                                                        <p class="mb-1"><?= htmlspecialchars($history->getNotes()) ?></p>
+                                                    <?php endif; ?>
+                                                    <small class="text-muted">
+                                                        <?= $history->changedByName ?? 'System' ?> •
+                                                        <?= date('M d, Y g:i A', strtotime($history->getCreatedAt())) ?>
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
+
+<!-- Add Note Modal -->
+<div class="modal fade" id="addNoteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/Order/addNote/<?= $order->getId() ?>">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Order Note</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="note_type" class="form-label">Note Type</label>
+                        <select class="form-control" id="note_type" name="note_type">
+                            <option value="internal">Internal Note</option>
+                            <option value="customer">Customer Note</option>
+                            <option value="system">System Note</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title (Optional)</label>
+                        <input type="text" class="form-control" id="title" name="title" placeholder="Note title">
+                    </div>
+                    <div class="mb-3">
+                        <label for="content" class="form-label">Content</label>
+                        <textarea class="form-control" id="content" name="content" rows="4" required placeholder="Enter note content"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="priority" class="form-label">Priority</label>
+                        <select class="form-control" id="priority" name="priority">
+                            <option value="low">Low</option>
+                            <option value="normal" selected>Normal</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="visible_to_customer" name="visible_to_customer">
+                            <label class="form-check-label" for="visible_to_customer">
+                                Visible to Customer
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Note</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <?php include 'app/views/layouts/admin_footer.php'; ?>

@@ -16,9 +16,17 @@ include 'app/views/layouts/customer_header.php';
     <!-- Page Title -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="text-primary"><i class="bi bi-file-earmark-text"></i> Order Details</h1>
-        <a href="/Order/myOrders" class="btn btn-outline-primary">
-            <i class="bi bi-arrow-left"></i> Back to My Orders
-        </a>
+        <div>
+            <a href="/Order/timeline/<?= $order->getId() ?>" class="btn btn-primary me-2">
+                <i class="bi bi-clock-history"></i> Timeline View
+            </a>
+            <a href="/Order/tracking/<?= $order->getId() ?>" class="btn btn-info me-2">
+                <i class="bi bi-truck"></i> Track Order
+            </a>
+            <a href="/Order/myOrders" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i> Back to My Orders
+            </a>
+        </div>
     </div>
 
     <!-- Order Information -->
@@ -34,6 +42,12 @@ include 'app/views/layouts/customer_header.php';
                             <th style="width: 40%">Order ID:</th>
                             <td><strong>#<?php echo $order->getId(); ?></strong></td>
                         </tr>
+                        <?php if ($order->getOrderNumber()): ?>
+                        <tr>
+                            <th>Order Number:</th>
+                            <td><strong><?php echo htmlspecialchars($order->getOrderNumber()); ?></strong></td>
+                        </tr>
+                        <?php endif; ?>
                         <tr>
                             <th>Date:</th>
                             <td><?php echo date('F d, Y H:i', strtotime($order->getCreatedAt())); ?></td>
@@ -91,6 +105,23 @@ include 'app/views/layouts/customer_header.php';
                             <th>Total Amount:</th>
                             <td class="fw-bold text-success">$<?php echo number_format($order->getTotalAmount(), 2); ?></td>
                         </tr>
+                        <?php if ($order->getTrackingNumber()): ?>
+                        <tr>
+                            <th>Tracking Number:</th>
+                            <td>
+                                <code class="bg-light p-1 rounded"><?php echo htmlspecialchars($order->getTrackingNumber()); ?></code>
+                                <a href="/Order/timeline/<?= $order->getId() ?>" class="btn btn-sm btn-outline-primary ms-2">
+                                    <i class="bi bi-clock-history"></i> Timeline
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                        <?php if ($order->getCarrier()): ?>
+                        <tr>
+                            <th>Carrier:</th>
+                            <td><?php echo htmlspecialchars($order->getCarrier()); ?></td>
+                        </tr>
+                        <?php endif; ?>
                     </table>
                 </div>
             </div>
@@ -104,8 +135,8 @@ include 'app/views/layouts/customer_header.php';
                     <address class="mb-0">
                         <strong>Delivery Address:</strong><br>
                         <?php echo htmlspecialchars($order->getShippingAddress()); ?><br>
-                        <?php echo htmlspecialchars($order->getShippingCity()); ?>, 
-                        <?php echo htmlspecialchars($order->getShippingState()); ?> 
+                        <?php echo htmlspecialchars($order->getShippingCity()); ?>,
+                        <?php echo htmlspecialchars($order->getShippingState()); ?>
                         <?php echo htmlspecialchars($order->getShippingZip()); ?><br>
                         <?php echo htmlspecialchars($order->getShippingCountry()); ?>
                     </address>
@@ -144,11 +175,11 @@ include 'app/views/layouts/customer_header.php';
                                         <td>
                                             <div class="d-flex align-items-center">
                                                 <?php if ($product && !empty($product->getImage())): ?>
-                                                    <img src="<?php echo htmlspecialchars($product->getImage()); ?>" 
-                                                         alt="<?php echo htmlspecialchars($productName); ?>" 
+                                                    <img src="<?php echo htmlspecialchars($product->getImage()); ?>"
+                                                         alt="<?php echo htmlspecialchars($productName); ?>"
                                                          class="me-3" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
                                                 <?php else: ?>
-                                                    <img src="https://via.placeholder.com/50" alt="Product" 
+                                                    <img src="https://via.placeholder.com/50" alt="Product"
                                                          class="me-3" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">
                                                 <?php endif; ?>
                                                 <div>

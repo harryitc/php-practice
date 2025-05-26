@@ -2,6 +2,9 @@
 
 require_once 'app/models/OrderModel.php';
 require_once 'app/models/OrderItemModel.php';
+require_once 'app/models/OrderStatusHistoryModel.php';
+require_once 'app/models/OrderTrackingModel.php';
+require_once 'app/models/OrderNotesModel.php';
 require_once 'app/models/UserModel.php';
 require_once 'app/models/ProductModel.php';
 require_once 'app/models/CartModel.php';
@@ -647,7 +650,7 @@ class OrderController
     }
 
     /**
-     * User's order history
+     * User's order history with enhanced features
      */
     public function myOrders()
     {
@@ -657,7 +660,33 @@ class OrderController
             exit();
         }
 
-        $orders = $this->getOrdersByUserId($_SESSION['user_id']);
+        // Get filters from request
+        $status = $_GET['status'] ?? '';
+        $search = $_GET['search'] ?? '';
+        $dateFrom = $_GET['date_from'] ?? '';
+        $dateTo = $_GET['date_to'] ?? '';
+        $page = (int)($_GET['page'] ?? 1);
+        $perPage = 10;
+
+        // Use CustomerOrderService for enhanced functionality
+        require_once 'app/services/CustomerOrderService.php';
+        $customerOrderService = new CustomerOrderService();
+
+        $filters = [
+            'user_id' => $_SESSION['user_id'],
+            'status' => $status,
+            'search' => $search,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo
+        ];
+
+        $result = $customerOrderService->getOrdersWithFilters($filters, $page, $perPage);
+        $orders = $result['orders'];
+        $totalOrders = $result['total'];
+        $totalPages = $result['total_pages'];
+
+        // Get order statistics for dashboard
+        $orderStats = $customerOrderService->getOrderStatistics($_SESSION['user_id']);
 
         include 'app/views/order/my_orders.php';
     }
@@ -685,5 +714,582 @@ class OrderController
         include 'app/views/order/view.php';
     }
 
+    /**
+     * Order tracking page for customers
+     */
+    public function tracking($orderId)
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
 
+        $order = $this->orderModel->findById($orderId);
+
+        // Check if order exists and belongs to current user
+        if (!$order || $order->getUserId() != $_SESSION['user_id']) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/myOrders');
+            exit();
+        }
+
+        // Use TrackingService for comprehensive tracking info
+        require_once 'app/services/TrackingService.php';
+        $trackingService = new TrackingService();
+        $trackingInfo = $trackingService->getOrderTrackingInfo($orderId);
+
+        // Extract data for view
+        $trackingHistory = $trackingInfo['tracking_history'];
+        $latestTracking = $trackingInfo['latest_tracking'];
+        $progressPercentage = $trackingInfo['progress_percentage'];
+        $estimatedDelivery = $trackingInfo['estimated_delivery'];
+        $isDelayed = $trackingInfo['is_delayed'];
+        $nextUpdateExpected = $trackingInfo['next_update_expected'];
+
+        // Load customer notes
+        $customerNotes = OrderNotesModel::getCustomerNotes($orderId);
+
+        include 'app/views/order/tracking.php';
+    }
+
+    /**
+     * Order timeline page for customers - Interactive timeline view
+     */
+    public function timeline($orderId)
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        // Check if order exists and belongs to current user
+        if (!$order || $order->getUserId() != $_SESSION['user_id']) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/myOrders');
+            exit();
+        }
+
+        include 'app/views/order/timeline.php';
+    }
+
+    /**
+     * Admin order tracking management
+     */
+    public function adminTracking($orderId)
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        $order = $this->orderModel->findById($orderId);
+
+        if (!$order) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/list');
+            exit();
+        }
+
+        // Load tracking history and get customer info
+        $trackingHistory = OrderTrackingModel::getByOrderId($orderId);
+        $customer = $this->userModel->findById($order->getUserId());
+
+        include 'app/views/admin/orders/tracking.php';
+    }
+
+    /**
+     * Admin order timeline management - Complete timeline view
+     */
+    public function adminTimeline($orderId)
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        $order = $this->orderModel->findById($orderId);
+
+        if (!$order) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/list');
+            exit();
+        }
+
+        // Get customer info
+        $customer = $this->userModel->findById($order->getUserId());
+
+        include 'app/views/admin/orders/timeline.php';
+    }
+
+    /**
+     * Add tracking update (Admin only)
+     */
+    public function addTracking($orderId)
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: /Order/adminTracking/' . $orderId);
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        if (!$order) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/list');
+            exit();
+        }
+
+        // Use TrackingService for comprehensive tracking update
+        require_once 'app/services/TrackingService.php';
+        $trackingService = new TrackingService();
+
+        $trackingData = [
+            'tracking_number' => $_POST['tracking_number'] ?? '',
+            'carrier' => $_POST['carrier'] ?? '',
+            'status' => $_POST['status'] ?? '',
+            'location' => $_POST['location'] ?? '',
+            'description' => $_POST['description'] ?? '',
+            'tracking_date' => $_POST['tracking_date'] ?? date('Y-m-d H:i:s'),
+            'recipient_name' => $_POST['recipient_name'] ?? '',
+            'signature_obtained' => isset($_POST['signature_obtained'])
+        ];
+
+        $tracking = $trackingService->createTrackingUpdate($orderId, $trackingData);
+
+        if ($tracking) {
+            $_SESSION['success_message'] = 'Tracking update added successfully';
+        } else {
+            $_SESSION['error_message'] = 'Failed to add tracking update';
+        }
+
+        header('Location: /Order/adminTracking/' . $orderId);
+        exit();
+    }
+
+    /**
+     * Add order note (Admin only)
+     */
+    public function addNote($orderId)
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: /Order/detail/' . $orderId);
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        if (!$order) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/list');
+            exit();
+        }
+
+        $noteType = $_POST['note_type'] ?? 'internal';
+        $title = $_POST['title'] ?? '';
+        $content = $_POST['content'] ?? '';
+        $isVisibleToCustomer = isset($_POST['visible_to_customer']);
+        $priority = $_POST['priority'] ?? 'normal';
+
+        if (empty($content)) {
+            $_SESSION['error_message'] = 'Note content is required';
+            header('Location: /Order/detail/' . $orderId);
+            exit();
+        }
+
+        if (OrderNotesModel::addNote($orderId, $content, $_SESSION['user_id'], $noteType, $title, $isVisibleToCustomer, $priority)) {
+            $_SESSION['success_message'] = 'Note added successfully';
+        } else {
+            $_SESSION['error_message'] = 'Failed to add note';
+        }
+
+        header('Location: /Order/detail/' . $orderId);
+        exit();
+    }
+
+    /**
+     * Update order status with history tracking
+     */
+    public function updateStatusWithHistory($orderId)
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: /Order/detail/' . $orderId);
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        if (!$order) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/list');
+            exit();
+        }
+
+        $newStatus = $_POST['status'] ?? '';
+        $reason = $_POST['reason'] ?? '';
+        $notes = $_POST['notes'] ?? '';
+
+        $validStatuses = ['pending', 'confirmed', 'processing', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'returned', 'refunded'];
+
+        if (!in_array($newStatus, $validStatuses)) {
+            $_SESSION['error_message'] = 'Invalid order status';
+            header('Location: /Order/detail/' . $orderId);
+            exit();
+        }
+
+        $oldStatus = $order->getStatus();
+        $order->setStatus($newStatus);
+
+        if ($order->save()) {
+            // Status history is automatically created in setStatus method
+            $_SESSION['success_message'] = 'Order status updated successfully';
+        } else {
+            $_SESSION['error_message'] = 'Failed to update order status';
+        }
+
+        header('Location: /Order/detail/' . $orderId);
+        exit();
+    }
+
+    /**
+     * Generate order report
+     */
+    public function generateReport()
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        $startDate = $_GET['start_date'] ?? date('Y-m-01');
+        $endDate = $_GET['end_date'] ?? date('Y-m-d');
+        $status = $_GET['status'] ?? '';
+
+        // Get orders within date range
+        $sql = "SELECT o.*, u.name, u.email
+                FROM orders o
+                LEFT JOIN users u ON o.user_id = u.id
+                WHERE DATE(o.created_at) BETWEEN :start_date AND :end_date";
+
+        $params = [
+            'start_date' => $startDate,
+            'end_date' => $endDate
+        ];
+
+        if ($status) {
+            $sql .= " AND o.status = :status";
+            $params['status'] = $status;
+        }
+
+        $sql .= " ORDER BY o.created_at DESC";
+
+        $db = Database::getInstance();
+        $orders = $db->query($sql)->fetchAll($params);
+
+        // Calculate statistics
+        $totalOrders = count($orders);
+        $totalRevenue = array_sum(array_column($orders, 'total_amount'));
+        $statusCounts = [];
+
+        foreach ($orders as $order) {
+            $statusCounts[$order['status']] = ($statusCounts[$order['status']] ?? 0) + 1;
+        }
+
+        include 'app/views/admin/orders/report.php';
+    }
+
+    /**
+     * Simulate tracking update (Admin only - for testing)
+     */
+    public function simulateTracking($orderId)
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        require_once 'app/services/TrackingService.php';
+        $trackingService = new TrackingService();
+
+        $tracking = $trackingService->simulateCarrierUpdate($orderId);
+
+        if ($tracking) {
+            $_SESSION['success_message'] = 'Tracking update simulated successfully';
+        } else {
+            $_SESSION['error_message'] = 'Failed to simulate tracking update';
+        }
+
+        header('Location: /Order/adminTracking/' . $orderId);
+        exit();
+    }
+
+    /**
+     * Get tracking statistics (Admin only)
+     */
+    public function trackingStats()
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        require_once 'app/services/TrackingService.php';
+        $trackingService = new TrackingService();
+
+        $stats = $trackingService->getTrackingStatistics();
+        $ordersNeedingUpdates = $trackingService->getOrdersNeedingUpdates();
+
+        include 'app/views/admin/orders/tracking_stats.php';
+    }
+
+    /**
+     * Export tracking data (Admin only)
+     */
+    public function exportTracking()
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        $dateFrom = $_GET['date_from'] ?? date('Y-m-d', strtotime('-30 days'));
+        $dateTo = $_GET['date_to'] ?? date('Y-m-d');
+
+        $sql = "SELECT
+                    o.order_number,
+                    o.tracking_number,
+                    o.carrier,
+                    o.status as order_status,
+                    ot.status as tracking_status,
+                    ot.location,
+                    ot.description,
+                    ot.tracking_date,
+                    u.name as customer_name,
+                    u.email as customer_email
+                FROM orders o
+                LEFT JOIN order_tracking ot ON o.id = ot.order_id
+                LEFT JOIN users u ON o.user_id = u.id
+                WHERE o.created_at BETWEEN :date_from AND :date_to
+                ORDER BY o.created_at DESC, ot.tracking_date DESC";
+
+        $db = Database::getInstance();
+        $results = $db->query($sql)->fetchAll([
+            'date_from' => $dateFrom . ' 00:00:00',
+            'date_to' => $dateTo . ' 23:59:59'
+        ]);
+
+        // Set headers for CSV download
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="tracking_export_' . date('Y-m-d') . '.csv"');
+
+        $output = fopen('php://output', 'w');
+
+        // CSV headers
+        fputcsv($output, [
+            'Order Number',
+            'Tracking Number',
+            'Carrier',
+            'Order Status',
+            'Tracking Status',
+            'Location',
+            'Description',
+            'Tracking Date',
+            'Customer Name',
+            'Customer Email'
+        ]);
+
+        // CSV data
+        foreach ($results as $row) {
+            fputcsv($output, [
+                $row['order_number'],
+                $row['tracking_number'],
+                $row['carrier'],
+                $row['order_status'],
+                $row['tracking_status'],
+                $row['location'],
+                $row['description'],
+                $row['tracking_date'],
+                $row['customer_name'],
+                $row['customer_email']
+            ]);
+        }
+
+        fclose($output);
+        exit();
+    }
+
+    /**
+     * Customer order dashboard
+     */
+    public function customerDashboard()
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
+
+        require_once 'app/services/CustomerOrderService.php';
+        $customerOrderService = new CustomerOrderService();
+
+        // Get comprehensive dashboard data
+        $dashboardData = $customerOrderService->getDashboardData($_SESSION['user_id']);
+
+        include 'app/views/order/dashboard.php';
+    }
+
+    /**
+     * Cancel order (Customer)
+     */
+    public function cancelOrder($orderId)
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        // Check if order exists and belongs to current user
+        if (!$order || $order->getUserId() != $_SESSION['user_id']) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/myOrders');
+            exit();
+        }
+
+        // Check if order can be cancelled
+        if (!in_array($order->getStatus(), ['pending', 'confirmed'])) {
+            $_SESSION['error_message'] = 'This order cannot be cancelled';
+            header('Location: /Order/view/' . $orderId);
+            exit();
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $reason = $_POST['reason'] ?? '';
+
+            require_once 'app/services/CustomerOrderService.php';
+            $customerOrderService = new CustomerOrderService();
+
+            if ($customerOrderService->cancelOrder($orderId, $reason, $_SESSION['user_id'])) {
+                $_SESSION['success_message'] = 'Order cancelled successfully';
+                header('Location: /Order/myOrders');
+            } else {
+                $_SESSION['error_message'] = 'Failed to cancel order';
+                header('Location: /Order/view/' . $orderId);
+            }
+            exit();
+        }
+
+        include 'app/views/order/cancel.php';
+    }
+
+    /**
+     * Request return/refund (Customer)
+     */
+    public function requestReturn($orderId)
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        // Check if order exists and belongs to current user
+        if (!$order || $order->getUserId() != $_SESSION['user_id']) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/myOrders');
+            exit();
+        }
+
+        // Check if order can be returned
+        if ($order->getStatus() !== 'delivered') {
+            $_SESSION['error_message'] = 'Only delivered orders can be returned';
+            header('Location: /Order/view/' . $orderId);
+            exit();
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $reason = $_POST['reason'] ?? '';
+            $description = $_POST['description'] ?? '';
+            $items = $_POST['items'] ?? [];
+
+            require_once 'app/services/CustomerOrderService.php';
+            $customerOrderService = new CustomerOrderService();
+
+            if ($customerOrderService->requestReturn($orderId, $reason, $description, $items, $_SESSION['user_id'])) {
+                $_SESSION['success_message'] = 'Return request submitted successfully';
+                header('Location: /Order/view/' . $orderId);
+            } else {
+                $_SESSION['error_message'] = 'Failed to submit return request';
+                header('Location: /Order/view/' . $orderId);
+            }
+            exit();
+        }
+
+        // Load order items for return selection
+        $order->loadItems();
+        include 'app/views/order/return_request.php';
+    }
+
+    /**
+     * Reorder functionality
+     */
+    public function reorder($orderId)
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        // Check if order exists and belongs to current user
+        if (!$order || $order->getUserId() != $_SESSION['user_id']) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/myOrders');
+            exit();
+        }
+
+        require_once 'app/services/CustomerOrderService.php';
+        $customerOrderService = new CustomerOrderService();
+
+        if ($customerOrderService->reorderItems($orderId, $_SESSION['user_id'])) {
+            $_SESSION['success_message'] = 'Items added to cart successfully';
+            header('Location: /Cart/view');
+        } else {
+            $_SESSION['error_message'] = 'Failed to add items to cart';
+            header('Location: /Order/view/' . $orderId);
+        }
+        exit();
+    }
+
+    /**
+     * Download invoice/receipt
+     */
+    public function downloadInvoice($orderId)
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        // Check if order exists and belongs to current user
+        if (!$order || $order->getUserId() != $_SESSION['user_id']) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/myOrders');
+            exit();
+        }
+
+        require_once 'app/services/CustomerOrderService.php';
+        $customerOrderService = new CustomerOrderService();
+
+        $customerOrderService->generateInvoice($order);
+    }
 }
