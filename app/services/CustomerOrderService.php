@@ -225,6 +225,10 @@ class CustomerOrderService
             $order->setStatus('cancelled');
 
             // Add cancellation note
+            if (!class_exists('OrderNotesModel')) {
+                require_once 'app/models/OrderNotesModel.php';
+            }
+
             OrderNotesModel::addNote(
                 $orderId,
                 "Order cancelled by customer. Reason: " . $reason,
@@ -265,6 +269,10 @@ class CustomerOrderService
             $noteContent .= "Reason: " . $reason . "\n";
             $noteContent .= "Description: " . $description . "\n";
             $noteContent .= "Items: " . implode(', ', $items);
+
+            if (!class_exists('OrderNotesModel')) {
+                require_once 'app/models/OrderNotesModel.php';
+            }
 
             OrderNotesModel::addNote(
                 $orderId,
@@ -308,7 +316,10 @@ class CustomerOrderService
             }
 
             // Add items to cart
-            require_once 'app/models/CartModel.php';
+            if (!class_exists('CartModel')) {
+                require_once 'app/models/CartModel.php';
+            }
+
             $cartModel = new CartModel();
 
             foreach ($items as $item) {
@@ -328,23 +339,38 @@ class CustomerOrderService
      */
     public function generateInvoice($order)
     {
-        // Load order items
-        $order->loadItems();
+        try {
+            // Load order items
+            $order->loadItems();
 
-        // Get customer info
-        require_once 'app/models/UserModel.php';
-        $userModel = new UserModel();
-        $customer = $userModel->findById($order->getUserId());
+            // Get customer info
+            if (!class_exists('UserModel')) {
+                require_once 'app/models/UserModel.php';
+            }
 
-        // Set headers for PDF download
-        header('Content-Type: text/html; charset=utf-8');
-        header('Content-Disposition: attachment; filename="invoice_' . $order->getOrderNumber() . '.html"');
+            $userModel = new UserModel();
+            $customer = $userModel->findById($order->getUserId());
 
-        // Generate HTML invoice
-        $html = $this->generateInvoiceHTML($order, $customer);
+            if (!$customer) {
+                throw new Exception("Customer not found");
+            }
 
-        echo $html;
-        exit();
+            // Set headers for HTML download
+            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Disposition: attachment; filename="invoice_' . ($order->getOrderNumber() ?: 'order_' . $order->getId()) . '.html"');
+
+            // Generate HTML invoice
+            $html = $this->generateInvoiceHTML($order, $customer);
+
+            echo $html;
+            exit();
+
+        } catch (Exception $e) {
+            error_log("Invoice generation error: " . $e->getMessage());
+            $_SESSION['error_message'] = 'Failed to generate invoice';
+            header('Location: /Order/myOrders');
+            exit();
+        }
     }
 
     /**

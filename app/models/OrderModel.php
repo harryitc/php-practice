@@ -50,7 +50,7 @@ class OrderModel
         $this->db = Database::getInstance();
 
         $this->id = $id;
-        $this->orderNumber = $this->generateOrderNumber();
+        $this->orderNumber = $id ? null : $this->generateOrderNumber(); // Only generate for new orders
         $this->userId = $userId;
         $this->totalAmount = $totalAmount;
         $this->taxAmount = 0;
@@ -64,6 +64,8 @@ class OrderModel
         $this->shippingZip = $shippingZip;
         $this->shippingCountry = $shippingCountry;
         $this->paymentMethod = $paymentMethod;
+        $this->trackingNumber = '';
+        $this->carrier = '';
         $this->priority = 'normal';
         $this->source = 'website';
         $this->createdAt = $createdAt;
@@ -231,43 +233,62 @@ class OrderModel
         $this->db->beginTransaction();
 
         try {
-            $sql = "INSERT INTO orders (order_number, user_id, total_amount, tax_amount, shipping_amount, discount_amount, status, payment_status, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country, billing_address, billing_city, billing_state, billing_zip, billing_country, payment_method, tracking_number, carrier, estimated_delivery_date, priority, source, notes, internal_notes)
-                    VALUES (:order_number, :user_id, :total_amount, :tax_amount, :shipping_amount, :discount_amount, :status, :payment_status, :shipping_address, :shipping_city, :shipping_state, :shipping_zip, :shipping_country, :billing_address, :billing_city, :billing_state, :billing_zip, :billing_country, :payment_method, :tracking_number, :carrier, :estimated_delivery_date, :priority, :source, :notes, :internal_notes)";
+            // Check if order_number column exists
+            $checkSql = "SHOW COLUMNS FROM orders LIKE 'order_number'";
+            $hasOrderNumber = $this->db->query($checkSql)->fetch();
 
-            $result = $this->db->query($sql)->bind([
-                'order_number' => $this->orderNumber,
-                'user_id' => $this->userId,
-                'total_amount' => $this->totalAmount,
-                'tax_amount' => $this->taxAmount,
-                'shipping_amount' => $this->shippingAmount,
-                'discount_amount' => $this->discountAmount,
-                'status' => $this->status,
-                'payment_status' => $this->paymentStatus,
-                'shipping_address' => $this->shippingAddress,
-                'shipping_city' => $this->shippingCity,
-                'shipping_state' => $this->shippingState,
-                'shipping_zip' => $this->shippingZip,
-                'shipping_country' => $this->shippingCountry,
-                'billing_address' => $this->billingAddress,
-                'billing_city' => $this->billingCity,
-                'billing_state' => $this->billingState,
-                'billing_zip' => $this->billingZip,
-                'billing_country' => $this->billingCountry,
-                'payment_method' => $this->paymentMethod,
-                'tracking_number' => $this->trackingNumber,
-                'carrier' => $this->carrier,
-                'estimated_delivery_date' => $this->estimatedDeliveryDate,
-                'priority' => $this->priority,
-                'source' => $this->source,
-                'notes' => $this->notes,
-                'internal_notes' => $this->internalNotes
-            ])->execute();
+            if ($hasOrderNumber) {
+                // Use full SQL with order_number
+                $sql = "INSERT INTO orders (order_number, user_id, total_amount, status, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country, payment_method)
+                        VALUES (:order_number, :user_id, :total_amount, :status, :shipping_address, :shipping_city, :shipping_state, :shipping_zip, :shipping_country, :payment_method)";
+
+                $params = [
+                    'order_number' => $this->orderNumber,
+                    'user_id' => $this->userId,
+                    'total_amount' => $this->totalAmount,
+                    'status' => $this->status,
+                    'shipping_address' => $this->shippingAddress,
+                    'shipping_city' => $this->shippingCity,
+                    'shipping_state' => $this->shippingState,
+                    'shipping_zip' => $this->shippingZip,
+                    'shipping_country' => $this->shippingCountry,
+                    'payment_method' => $this->paymentMethod
+                ];
+            } else {
+                // Use basic SQL without order_number
+                $sql = "INSERT INTO orders (user_id, total_amount, status, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country, payment_method)
+                        VALUES (:user_id, :total_amount, :status, :shipping_address, :shipping_city, :shipping_state, :shipping_zip, :shipping_country, :payment_method)";
+
+                $params = [
+                    'user_id' => $this->userId,
+                    'total_amount' => $this->totalAmount,
+                    'status' => $this->status,
+                    'shipping_address' => $this->shippingAddress,
+                    'shipping_city' => $this->shippingCity,
+                    'shipping_state' => $this->shippingState,
+                    'shipping_zip' => $this->shippingZip,
+                    'shipping_country' => $this->shippingCountry,
+                    'payment_method' => $this->paymentMethod
+                ];
+            }
+
+            $result = $this->db->query($sql)->bind($params)->execute();
 
             if (!$result) {
                 throw new Exception("Failed to insert order");
             }
 
             $this->id = $this->db->lastInsertId();
+
+            // Update order_number if it wasn't set during insert
+            if ($hasOrderNumber && !$this->orderNumber) {
+                $this->orderNumber = 'ORD-' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
+                $updateSql = "UPDATE orders SET order_number = :order_number WHERE id = :id";
+                $this->db->query($updateSql)->bind([
+                    'order_number' => $this->orderNumber,
+                    'id' => $this->id
+                ])->execute();
+            }
 
             // Save order items
             foreach ($this->items as $item) {
@@ -280,6 +301,7 @@ class OrderModel
             $this->db->commit();
             return true;
         } catch (Exception $e) {
+            error_log("Order insert error: " . $e->getMessage());
             $this->db->rollback();
             return false;
         }
@@ -292,66 +314,73 @@ class OrderModel
      */
     private function update()
     {
-        $sql = "UPDATE orders
-                SET order_number = :order_number,
-                    user_id = :user_id,
-                    total_amount = :total_amount,
-                    tax_amount = :tax_amount,
-                    shipping_amount = :shipping_amount,
-                    discount_amount = :discount_amount,
-                    status = :status,
-                    payment_status = :payment_status,
-                    shipping_address = :shipping_address,
-                    shipping_city = :shipping_city,
-                    shipping_state = :shipping_state,
-                    shipping_zip = :shipping_zip,
-                    shipping_country = :shipping_country,
-                    billing_address = :billing_address,
-                    billing_city = :billing_city,
-                    billing_state = :billing_state,
-                    billing_zip = :billing_zip,
-                    billing_country = :billing_country,
-                    payment_method = :payment_method,
-                    tracking_number = :tracking_number,
-                    carrier = :carrier,
-                    estimated_delivery_date = :estimated_delivery_date,
-                    actual_delivery_date = :actual_delivery_date,
-                    priority = :priority,
-                    source = :source,
-                    notes = :notes,
-                    internal_notes = :internal_notes
-                WHERE id = :id";
+        try {
+            // Check which columns exist
+            $checkSql = "SHOW COLUMNS FROM orders LIKE 'order_number'";
+            $hasOrderNumber = $this->db->query($checkSql)->fetch();
 
-        return $this->db->query($sql)->bind([
-            'id' => $this->id,
-            'order_number' => $this->orderNumber,
-            'user_id' => $this->userId,
-            'total_amount' => $this->totalAmount,
-            'tax_amount' => $this->taxAmount,
-            'shipping_amount' => $this->shippingAmount,
-            'discount_amount' => $this->discountAmount,
-            'status' => $this->status,
-            'payment_status' => $this->paymentStatus,
-            'shipping_address' => $this->shippingAddress,
-            'shipping_city' => $this->shippingCity,
-            'shipping_state' => $this->shippingState,
-            'shipping_zip' => $this->shippingZip,
-            'shipping_country' => $this->shippingCountry,
-            'billing_address' => $this->billingAddress,
-            'billing_city' => $this->billingCity,
-            'billing_state' => $this->billingState,
-            'billing_zip' => $this->billingZip,
-            'billing_country' => $this->billingCountry,
-            'payment_method' => $this->paymentMethod,
-            'tracking_number' => $this->trackingNumber,
-            'carrier' => $this->carrier,
-            'estimated_delivery_date' => $this->estimatedDeliveryDate,
-            'actual_delivery_date' => $this->actualDeliveryDate,
-            'priority' => $this->priority,
-            'source' => $this->source,
-            'notes' => $this->notes,
-            'internal_notes' => $this->internalNotes
-        ])->execute();
+            if ($hasOrderNumber) {
+                // Use SQL with order_number
+                $sql = "UPDATE orders
+                        SET order_number = :order_number,
+                            user_id = :user_id,
+                            total_amount = :total_amount,
+                            status = :status,
+                            shipping_address = :shipping_address,
+                            shipping_city = :shipping_city,
+                            shipping_state = :shipping_state,
+                            shipping_zip = :shipping_zip,
+                            shipping_country = :shipping_country,
+                            payment_method = :payment_method
+                        WHERE id = :id";
+
+                $params = [
+                    'id' => $this->id,
+                    'order_number' => $this->orderNumber,
+                    'user_id' => $this->userId,
+                    'total_amount' => $this->totalAmount,
+                    'status' => $this->status,
+                    'shipping_address' => $this->shippingAddress,
+                    'shipping_city' => $this->shippingCity,
+                    'shipping_state' => $this->shippingState,
+                    'shipping_zip' => $this->shippingZip,
+                    'shipping_country' => $this->shippingCountry,
+                    'payment_method' => $this->paymentMethod
+                ];
+            } else {
+                // Use basic SQL without order_number
+                $sql = "UPDATE orders
+                        SET user_id = :user_id,
+                            total_amount = :total_amount,
+                            status = :status,
+                            shipping_address = :shipping_address,
+                            shipping_city = :shipping_city,
+                            shipping_state = :shipping_state,
+                            shipping_zip = :shipping_zip,
+                            shipping_country = :shipping_country,
+                            payment_method = :payment_method
+                        WHERE id = :id";
+
+                $params = [
+                    'id' => $this->id,
+                    'user_id' => $this->userId,
+                    'total_amount' => $this->totalAmount,
+                    'status' => $this->status,
+                    'shipping_address' => $this->shippingAddress,
+                    'shipping_city' => $this->shippingCity,
+                    'shipping_state' => $this->shippingState,
+                    'shipping_zip' => $this->shippingZip,
+                    'shipping_country' => $this->shippingCountry,
+                    'payment_method' => $this->paymentMethod
+                ];
+            }
+
+            return $this->db->query($sql)->bind($params)->execute();
+
+        } catch (Exception $e) {
+            error_log("Order update error: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -464,13 +493,23 @@ class OrderModel
 
         // Record status change in history if order exists
         if ($this->id && $oldStatus !== $status) {
-            OrderStatusHistoryModel::createStatusChange($this->id, $oldStatus, $status, $_SESSION['user_id'] ?? null);
+            try {
+                // Ensure OrderStatusHistoryModel is loaded
+                if (!class_exists('OrderStatusHistoryModel')) {
+                    require_once 'app/models/OrderStatusHistoryModel.php';
+                }
 
-            // Send notification for status change
-            if (file_exists('app/services/NotificationService.php')) {
-                require_once 'app/services/NotificationService.php';
-                $notificationService = new NotificationService();
-                $notificationService->sendOrderStatusUpdate($this, $oldStatus, $status);
+                OrderStatusHistoryModel::createStatusChange($this->id, $oldStatus, $status, $_SESSION['user_id'] ?? null);
+
+                // Send notification for status change
+                if (file_exists('app/services/NotificationService.php')) {
+                    require_once 'app/services/NotificationService.php';
+                    $notificationService = new NotificationService();
+                    $notificationService->sendOrderStatusUpdate($this, $oldStatus, $status);
+                }
+            } catch (Exception $e) {
+                error_log("Error updating order status: " . $e->getMessage());
+                // Continue execution even if history/notification fails
             }
         }
     }
@@ -673,7 +712,30 @@ class OrderModel
      */
     private function generateOrderNumber()
     {
-        return 'ORD-' . date('Y') . '-' . str_pad(mt_rand(1, 999999), 6, '0', STR_PAD_LEFT);
+        $attempts = 0;
+        $maxAttempts = 10;
+
+        do {
+            $orderNumber = 'ORD-' . date('Y') . '-' . str_pad(mt_rand(1, 999999), 6, '0', STR_PAD_LEFT);
+
+            // Check if this order number already exists
+            try {
+                $checkSql = "SELECT id FROM orders WHERE order_number = :order_number";
+                $existing = $this->db->query($checkSql)->fetch(['order_number' => $orderNumber]);
+
+                if (!$existing) {
+                    return $orderNumber;
+                }
+            } catch (Exception $e) {
+                // If order_number column doesn't exist, just return the generated number
+                return $orderNumber;
+            }
+
+            $attempts++;
+        } while ($attempts < $maxAttempts);
+
+        // Fallback: use timestamp if all attempts failed
+        return 'ORD-' . date('Y') . '-' . time();
     }
 
     /**

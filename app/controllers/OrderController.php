@@ -557,50 +557,55 @@ class OrderController
         }
 
         // Create order
-        $cartItems = $cart->getCartItemsWithDetails();
-        $totalAmount = $cart->getTotalAmount();
+        try {
+            $cartItems = $cart->getCartItemsWithDetails();
+            $totalAmount = $cart->getTotalAmount();
 
-        $order = new OrderModel(
-            null,
-            $_SESSION['user_id'],
-            $totalAmount,
-            'pending',
-            $shippingAddress,
-            $shippingCity,
-            $shippingState,
-            $shippingZip,
-            $shippingCountry,
-            $paymentMethod
-        );
+            if (empty($cartItems)) {
+                $_SESSION['error_message'] = 'Your cart is empty';
+                header('Location: /Cart');
+                exit();
+            }
 
-        // Save order and order items
-        if ($order->save()) {
-            $orderId = $order->getId();
+            $order = new OrderModel(
+                null,
+                $_SESSION['user_id'],
+                $totalAmount,
+                'pending',
+                $shippingAddress,
+                $shippingCity,
+                $shippingState,
+                $shippingZip,
+                $shippingCountry,
+                $paymentMethod
+            );
 
-            // Add order items
-            $allItemsSaved = true;
+            // Add items to order before saving
             foreach ($cartItems as $item) {
                 $orderItem = new OrderItemModel(
                     null,
-                    $orderId,
+                    null, // Will be set when order is saved
                     $item['product_id'],
                     $item['quantity'],
                     $item['price']
                 );
-
-                if (!$orderItem->save()) {
-                    $allItemsSaved = false;
-                    break;
-                }
-
-                // Update product inventory
-                $product = $item['product'];
-                $newInventory = $product->getInventoryCount() - $item['quantity'];
-                $product->setInventoryCount($newInventory);
-                $product->save();
+                $order->addItem($orderItem);
             }
 
-            if ($allItemsSaved) {
+            // Save order (this will also save order items)
+            if ($order->save()) {
+                $orderId = $order->getId();
+
+                // Update product inventory
+                foreach ($cartItems as $item) {
+                    $product = $item['product'];
+                    if ($product) {
+                        $newInventory = $product->getInventoryCount() - $item['quantity'];
+                        $product->setInventoryCount(max(0, $newInventory)); // Ensure inventory doesn't go negative
+                        $product->save();
+                    }
+                }
+
                 // Clear cart
                 $cart->clearCart();
 
@@ -608,14 +613,13 @@ class OrderController
                 header('Location: /Order/success/' . $orderId);
                 exit();
             } else {
-                // Delete the order if items couldn't be saved
-                $order->delete();
-                $_SESSION['error_message'] = 'Failed to create order items. Please try again.';
+                $_SESSION['error_message'] = 'Failed to create order. Please try again.';
                 header('Location: /Order/checkout');
                 exit();
             }
-        } else {
-            $_SESSION['error_message'] = 'Failed to create order. Please try again.';
+        } catch (Exception $e) {
+            error_log("Checkout error: " . $e->getMessage());
+            $_SESSION['error_message'] = 'An error occurred while processing your order. Please try again.';
             header('Location: /Order/checkout');
             exit();
         }
@@ -945,14 +949,34 @@ class OrderController
             exit();
         }
 
-        $oldStatus = $order->getStatus();
-        $order->setStatus($newStatus);
+        try {
+            $oldStatus = $order->getStatus();
 
-        if ($order->save()) {
-            // Status history is automatically created in setStatus method
-            $_SESSION['success_message'] = 'Order status updated successfully';
-        } else {
-            $_SESSION['error_message'] = 'Failed to update order status';
+            // Update order status
+            $order->setStatus($newStatus);
+
+            // Add admin note if provided
+            if (!empty($notes)) {
+                require_once 'app/models/OrderNotesModel.php';
+                OrderNotesModel::addNote(
+                    $orderId,
+                    $notes,
+                    $_SESSION['user_id'],
+                    'admin',
+                    'Status Update: ' . ucfirst(str_replace('_', ' ', $newStatus)),
+                    true,
+                    'normal'
+                );
+            }
+
+            if ($order->save()) {
+                $_SESSION['success_message'] = 'Order status updated successfully';
+            } else {
+                $_SESSION['error_message'] = 'Failed to update order status';
+            }
+        } catch (Exception $e) {
+            error_log("Order status update error: " . $e->getMessage());
+            $_SESSION['error_message'] = 'An error occurred while updating order status';
         }
 
         header('Location: /Order/detail/' . $orderId);
@@ -1291,5 +1315,242 @@ class OrderController
         $customerOrderService = new CustomerOrderService();
 
         $customerOrderService->generateInvoice($order);
+    }
+
+    /**
+     * Enhanced admin dashboard
+     */
+    public function adminDashboard()
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        require_once 'app/services/AdminOrderService.php';
+        $adminOrderService = new AdminOrderService();
+
+        $dateRange = $_GET['range'] ?? 30;
+        $dashboardData = $adminOrderService->getDashboardData($dateRange);
+
+        include 'app/views/admin/orders/admin_dashboard.php';
+    }
+
+    /**
+     * Advanced order management interface
+     */
+    public function adminManage()
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        require_once 'app/services/AdminOrderService.php';
+        $adminOrderService = new AdminOrderService();
+
+        // Get filters
+        $filters = [
+            'status' => $_GET['status'] ?? '',
+            'customer_id' => $_GET['customer_id'] ?? '',
+            'date_from' => $_GET['date_from'] ?? '',
+            'date_to' => $_GET['date_to'] ?? '',
+            'min_amount' => $_GET['min_amount'] ?? '',
+            'max_amount' => $_GET['max_amount'] ?? '',
+            'search' => $_GET['search'] ?? ''
+        ];
+
+        $page = (int)($_GET['page'] ?? 1);
+        $perPage = (int)($_GET['per_page'] ?? 20);
+
+        $result = $adminOrderService->getOrdersWithAdvancedFilters($filters, $page, $perPage);
+
+        // Get filter options
+        $statuses = ['pending', 'confirmed', 'processing', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'returned'];
+
+        // Get customers for filter
+        $db = Database::getInstance();
+        $customersSql = "SELECT DISTINCT u.id, u.name FROM users u JOIN orders o ON u.id = o.user_id ORDER BY u.name";
+        $customers = $db->query($customersSql)->fetchAll();
+
+        include 'app/views/admin/orders/manage.php';
+    }
+
+    /**
+     * Bulk order actions
+     */
+    public function bulkAction()
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: /Order/adminManage');
+            exit();
+        }
+
+        $action = $_POST['bulk_action'] ?? '';
+        $orderIds = $_POST['order_ids'] ?? [];
+
+        if (empty($action) || empty($orderIds)) {
+            $_SESSION['error_message'] = 'Please select an action and orders';
+            header('Location: /Order/adminManage');
+            exit();
+        }
+
+        $successCount = 0;
+        $errorCount = 0;
+
+        foreach ($orderIds as $orderId) {
+            $order = $this->orderModel->findById($orderId);
+            if (!$order) {
+                $errorCount++;
+                continue;
+            }
+
+            switch ($action) {
+                case 'confirm':
+                    if ($order->getStatus() === 'pending') {
+                        $order->setStatus('confirmed');
+                        if ($order->save()) {
+                            $successCount++;
+                        } else {
+                            $errorCount++;
+                        }
+                    }
+                    break;
+
+                case 'process':
+                    if (in_array($order->getStatus(), ['pending', 'confirmed'])) {
+                        $order->setStatus('processing');
+                        if ($order->save()) {
+                            $successCount++;
+                        } else {
+                            $errorCount++;
+                        }
+                    }
+                    break;
+
+                case 'ship':
+                    if (in_array($order->getStatus(), ['confirmed', 'processing', 'packed'])) {
+                        $order->setStatus('shipped');
+                        if ($order->save()) {
+                            $successCount++;
+                        } else {
+                            $errorCount++;
+                        }
+                    }
+                    break;
+
+                case 'cancel':
+                    if (!in_array($order->getStatus(), ['delivered', 'cancelled'])) {
+                        $order->setStatus('cancelled');
+                        if ($order->save()) {
+                            $successCount++;
+                        } else {
+                            $errorCount++;
+                        }
+                    }
+                    break;
+
+                case 'export':
+                    // Handle export separately
+                    $this->exportSelectedOrders($orderIds);
+                    return;
+            }
+        }
+
+        if ($successCount > 0) {
+            $_SESSION['success_message'] = "Successfully processed {$successCount} orders";
+        }
+
+        if ($errorCount > 0) {
+            $_SESSION['error_message'] = "Failed to process {$errorCount} orders";
+        }
+
+        header('Location: /Order/adminManage');
+        exit();
+    }
+
+    /**
+     * Export selected orders
+     */
+    private function exportSelectedOrders($orderIds)
+    {
+        $db = Database::getInstance();
+        $placeholders = str_repeat('?,', count($orderIds) - 1) . '?';
+
+        $sql = "SELECT o.*, u.name as customer_name, u.email as customer_email
+                FROM orders o
+                LEFT JOIN users u ON o.user_id = u.id
+                WHERE o.id IN ($placeholders)
+                ORDER BY o.created_at DESC";
+
+        $results = $db->query($sql)->fetchAll($orderIds);
+
+        // Set headers for CSV download
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="selected_orders_' . date('Y-m-d') . '.csv"');
+
+        $output = fopen('php://output', 'w');
+
+        // CSV headers
+        fputcsv($output, [
+            'Order ID',
+            'Order Number',
+            'Customer Name',
+            'Customer Email',
+            'Status',
+            'Total Amount',
+            'Created Date',
+            'Payment Method'
+        ]);
+
+        // CSV data
+        foreach ($results as $row) {
+            fputcsv($output, [
+                $row['id'],
+                $row['order_number'],
+                $row['customer_name'],
+                $row['customer_email'],
+                $row['status'],
+                $row['total_amount'],
+                $row['created_at'],
+                $row['payment_method']
+            ]);
+        }
+
+        fclose($output);
+        exit();
+    }
+
+    /**
+     * Order analytics page
+     */
+    public function analytics()
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        require_once 'app/services/AdminOrderService.php';
+        $adminOrderService = new AdminOrderService();
+
+        $dateRange = $_GET['range'] ?? 30;
+        $analyticsData = $adminOrderService->getDashboardData($dateRange);
+
+        include 'app/views/admin/orders/analytics.php';
+    }
+
+    /**
+     * Customer management from orders perspective
+     */
+    public function customerManagement()
+    {
+        // Require admin privileges
+        $this->authController->requireAdmin();
+
+        require_once 'app/services/AdminOrderService.php';
+        $adminOrderService = new AdminOrderService();
+
+        $dateRange = $_GET['range'] ?? 30;
+        $topCustomers = $adminOrderService->getTopCustomers($dateRange, 50);
+
+        include 'app/views/admin/orders/customers.php';
     }
 }
