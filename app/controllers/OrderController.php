@@ -4,6 +4,7 @@ require_once 'app/models/OrderModel.php';
 require_once 'app/models/OrderItemModel.php';
 require_once 'app/models/UserModel.php';
 require_once 'app/models/ProductModel.php';
+require_once 'app/models/CartModel.php';
 require_once 'app/controllers/AuthController.php';
 require_once 'app/core/Database.php';
 
@@ -456,5 +457,231 @@ class OrderController
         }
 
         return '/Order/list?' . http_build_query($params);
+    }
+
+    /**
+     * Checkout page - display cart items and shipping form
+     */
+    public function checkout()
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            $_SESSION['error_message'] = 'Please login to proceed with checkout';
+            header('Location: /Auth/login?redirect=/Cart');
+            exit();
+        }
+
+        // Check if cart is not empty
+        $cart = new CartModel();
+
+        if ($cart->isEmpty()) {
+            $_SESSION['error_message'] = 'Your cart is empty';
+            header('Location: /Cart');
+            exit();
+        }
+
+        $cartItems = $cart->getCartItemsWithDetails();
+        $totalAmount = $cart->getTotalAmount();
+        $itemCount = $cart->getItemCount();
+
+        // Get user information for pre-filling form
+        $user = $this->userModel->findById($_SESSION['user_id']);
+
+        include 'app/views/order/checkout.php';
+    }
+
+    /**
+     * Process checkout form and create order
+     */
+    public function processCheckout()
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            $_SESSION['error_message'] = 'Please login to proceed with checkout';
+            header('Location: /Auth/login?redirect=/Cart');
+            exit();
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: /Order/checkout');
+            exit();
+        }
+
+        // Check if cart is not empty
+        $cart = new CartModel();
+
+        if ($cart->isEmpty()) {
+            $_SESSION['error_message'] = 'Your cart is empty';
+            header('Location: /Cart');
+            exit();
+        }
+
+        $errors = [];
+
+        // Validate form data
+        $shippingAddress = trim($_POST['shipping_address'] ?? '');
+        $shippingCity = trim($_POST['shipping_city'] ?? '');
+        $shippingState = trim($_POST['shipping_state'] ?? '');
+        $shippingZip = trim($_POST['shipping_zip'] ?? '');
+        $shippingCountry = trim($_POST['shipping_country'] ?? '');
+        $paymentMethod = $_POST['payment_method'] ?? '';
+
+        // Validation
+        if (empty($shippingAddress)) {
+            $errors[] = 'Shipping address is required';
+        }
+        if (empty($shippingCity)) {
+            $errors[] = 'City is required';
+        }
+        if (empty($shippingState)) {
+            $errors[] = 'State is required';
+        }
+        if (empty($shippingZip)) {
+            $errors[] = 'ZIP code is required';
+        }
+        if (empty($shippingCountry)) {
+            $errors[] = 'Country is required';
+        }
+        if (!in_array($paymentMethod, ['cod', 'bank_transfer', 'credit_card'])) {
+            $errors[] = 'Please select a valid payment method';
+        }
+
+        if (!empty($errors)) {
+            $_SESSION['checkout_errors'] = $errors;
+            $_SESSION['checkout_data'] = $_POST;
+            header('Location: /Order/checkout');
+            exit();
+        }
+
+        // Create order
+        $cartItems = $cart->getCartItemsWithDetails();
+        $totalAmount = $cart->getTotalAmount();
+
+        $order = new OrderModel(
+            null,
+            $_SESSION['user_id'],
+            $totalAmount,
+            'pending',
+            $shippingAddress,
+            $shippingCity,
+            $shippingState,
+            $shippingZip,
+            $shippingCountry,
+            $paymentMethod
+        );
+
+        // Save order and order items
+        if ($order->save()) {
+            $orderId = $order->getId();
+
+            // Add order items
+            $allItemsSaved = true;
+            foreach ($cartItems as $item) {
+                $orderItem = new OrderItemModel(
+                    null,
+                    $orderId,
+                    $item['product_id'],
+                    $item['quantity'],
+                    $item['price']
+                );
+
+                if (!$orderItem->save()) {
+                    $allItemsSaved = false;
+                    break;
+                }
+
+                // Update product inventory
+                $product = $item['product'];
+                $newInventory = $product->getInventoryCount() - $item['quantity'];
+                $product->setInventoryCount($newInventory);
+                $product->save();
+            }
+
+            if ($allItemsSaved) {
+                // Clear cart
+                $cart->clearCart();
+
+                $_SESSION['success_message'] = 'Order placed successfully! Order ID: ' . $orderId;
+                header('Location: /Order/success/' . $orderId);
+                exit();
+            } else {
+                // Delete the order if items couldn't be saved
+                $order->delete();
+                $_SESSION['error_message'] = 'Failed to create order items. Please try again.';
+                header('Location: /Order/checkout');
+                exit();
+            }
+        } else {
+            $_SESSION['error_message'] = 'Failed to create order. Please try again.';
+            header('Location: /Order/checkout');
+            exit();
+        }
+    }
+
+    /**
+     * Order success page
+     */
+    public function success($orderId = null)
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
+
+        if (!$orderId) {
+            header('Location: /Product/list');
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        // Check if order exists and belongs to current user
+        if (!$order || $order->getUserId() != $_SESSION['user_id']) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Product/list');
+            exit();
+        }
+
+        include 'app/views/order/success.php';
+    }
+
+    /**
+     * User's order history
+     */
+    public function myOrders()
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
+
+        $orders = $this->getOrdersByUserId($_SESSION['user_id']);
+
+        include 'app/views/order/my_orders.php';
+    }
+
+    /**
+     * View specific order details for current user
+     */
+    public function view($orderId)
+    {
+        // Require user to be logged in
+        if (!isset($_SESSION['user_id'])) {
+            header('Location: /Auth/login');
+            exit();
+        }
+
+        $order = $this->orderModel->findById($orderId);
+
+        // Check if order exists and belongs to current user
+        if (!$order || $order->getUserId() != $_SESSION['user_id']) {
+            $_SESSION['error_message'] = 'Order not found';
+            header('Location: /Order/myOrders');
+            exit();
+        }
+
+        include 'app/views/order/view.php';
     }
 }

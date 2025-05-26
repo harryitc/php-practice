@@ -119,6 +119,12 @@
                         <?php endif; ?>
                     </ul>
                     <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/Cart">
+                                <i class="bi bi-cart"></i> Cart
+                                <span class="badge bg-warning text-dark" id="cart-count">0</span>
+                            </a>
+                        </li>
                         <?php if (isset($_SESSION['user_id'])): ?>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -126,6 +132,7 @@
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                                 <li><a class="dropdown-item" href="/Auth/profile"><i class="bi bi-person me-2"></i>My Profile</a></li>
+                                <li><a class="dropdown-item" href="/Order/myOrders"><i class="bi bi-bag me-2"></i>My Orders</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="/Auth/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
                             </ul>
@@ -267,13 +274,14 @@
                             <thead>
                                 <tr>
                                     <th scope="col" width="3%"><input type="checkbox" class="form-check-input"></th>
-                                    <th scope="col" width="25%">Product</th>
-                                    <th scope="col" width="12%">Status</th>
-                                    <th scope="col" width="12%">Price</th>
-                                    <th scope="col" width="12%">Inventory (count)</th>
-                                    <th scope="col" width="12%">Incoming (count)</th>
-                                    <th scope="col" width="12%">Out of Stock</th>
-                                    <th scope="col" width="8%">Grade</th>
+                                    <th scope="col" width="20%">Product</th>
+                                    <th scope="col" width="10%">Status</th>
+                                    <th scope="col" width="10%">Price</th>
+                                    <th scope="col" width="10%">Inventory</th>
+                                    <th scope="col" width="10%">Incoming</th>
+                                    <th scope="col" width="10%">Out of Stock</th>
+                                    <th scope="col" width="7%">Grade</th>
+                                    <th scope="col" width="10%" class="text-center">Add to Cart</th>
                                     <th scope="col" width="10%" class="text-center">Actions</th>
                                 </tr>
                             </thead>
@@ -310,16 +318,29 @@
                                         <td><?php echo htmlspecialchars((string)$product->getOutOfStock(), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td><?php echo htmlspecialchars((string)$product->getGrade(), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td class="text-center">
+                                            <?php if ($product->getInventoryCount() > 0): ?>
+                                                <button class="btn btn-sm btn-success" onclick="addToCart(<?php echo $product->getID(); ?>)" title="Add to Cart">
+                                                    <i class="bi bi-cart-plus"></i>
+                                                </button>
+                                            <?php else: ?>
+                                                <button class="btn btn-sm btn-secondary" disabled title="Out of Stock">
+                                                    <i class="bi bi-cart-x"></i>
+                                                </button>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-center">
                                             <div class="btn-group" role="group">
                                                 <a href="/Product/detail/<?php echo $product->getID(); ?>" class="btn btn-sm btn-info me-1" title="View Details">
                                                     <i class="bi bi-eye"></i>
                                                 </a>
+                                                <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
                                                 <a href="/Product/edit/<?php echo $product->getID(); ?>" class="btn btn-sm btn-warning me-1" title="Edit">
                                                     <i class="bi bi-pencil-square"></i>
                                                 </a>
                                                 <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $product->getID(); ?>" title="Delete">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
+                                                <?php endif; ?>
                                             </div>
 
                                             <!-- Delete Confirmation Modal -->
@@ -456,5 +477,90 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWQ/Qqz24Gc6BM0thvEMVjHnfYGF0rmFCozFSxQBxwHKO" crossorigin="anonymous"></script>
+
+    <!-- Success Toast -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="successToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-success text-white">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                <strong class="me-auto">Success</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="toast-message">
+                Product added to cart successfully!
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Toast -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="errorToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-danger text-white">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong class="me-auto">Error</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="error-toast-message">
+                Failed to add product to cart.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load cart count on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCartCount();
+        });
+
+        function addToCart(productId) {
+            fetch('/Cart/add', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `product_id=${productId}&quantity=1`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update cart count
+                    document.getElementById('cart-count').textContent = data.cart_count;
+
+                    // Show success toast
+                    showToast('successToast', data.message);
+                } else {
+                    // Show error toast
+                    showToast('errorToast', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('errorToast', 'An error occurred while adding the product to cart');
+            });
+        }
+
+        function updateCartCount() {
+            fetch('/Cart/count')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('cart-count').textContent = data.count;
+            })
+            .catch(error => {
+                console.error('Error updating cart count:', error);
+            });
+        }
+
+        function showToast(toastId, message) {
+            const toast = document.getElementById(toastId);
+            const messageElement = toastId === 'successToast' ?
+                document.getElementById('toast-message') :
+                document.getElementById('error-toast-message');
+
+            messageElement.textContent = message;
+
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+    </script>
 </body>
 </html>
