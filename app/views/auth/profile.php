@@ -86,17 +86,12 @@ if ($isAdmin) {
                         <label for="current_password" class="form-label">Current Password *</label>
                         <input type="password" class="form-control" id="current_password" name="current_password" required>
                     </div>
-                    <div class="mb-3">
-                        <label for="new_password" class="form-label">New Password *</label>
-                        <input type="password" class="form-control" id="new_password" name="new_password" required>
-                        <small class="text-muted">Minimum 6 characters</small>
-                    </div>
-                    <div class="mb-3">
-                        <label for="confirm_password" class="form-label">Confirm Password *</label>
-                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        For security reasons, you'll need to verify your identity before changing your password.
                     </div>
                     <button type="submit" class="btn btn-warning w-100">
-                        <i class="bi bi-key me-2"></i>Change Password
+                        <i class="bi bi-shield-lock me-2"></i>Continue to Verification
                     </button>
                 </form>
             </div>
@@ -189,23 +184,16 @@ if ($isAdmin) {
                 </div>
                 <div class="card-body">
                     <form action="/Auth/changePassword" method="POST" id="passwordForm">
-                        <div class="row">
-                            <div class="col-md-4 mb-3">
-                                <label for="current_password" class="form-label">Current Password *</label>
-                                <input type="password" class="form-control" id="current_password" name="current_password" required>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="new_password" class="form-label">New Password *</label>
-                                <input type="password" class="form-control" id="new_password" name="new_password" required>
-                                <small class="text-muted">Minimum 6 characters</small>
-                            </div>
-                            <div class="col-md-4 mb-3">
-                                <label for="confirm_password" class="form-label">Confirm Password *</label>
-                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
-                            </div>
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Current Password *</label>
+                            <input type="password" class="form-control" id="current_password" name="current_password" required>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle-fill me-2"></i>
+                            For security reasons, you'll need to verify your identity before changing your password.
                         </div>
                         <button type="submit" class="btn btn-warning">
-                            <i class="bi bi-key me-2"></i>Change Password
+                            <i class="bi bi-shield-lock me-2"></i>Continue to Verification
                         </button>
                     </form>
                 </div>
@@ -273,24 +261,10 @@ document.getElementById('profileForm').addEventListener('submit', function(e) {
 
 document.getElementById('passwordForm').addEventListener('submit', function(e) {
     const currentPassword = document.getElementById('current_password').value;
-    const newPassword = document.getElementById('new_password').value;
-    const confirmPassword = document.getElementById('confirm_password').value;
 
-    if (!currentPassword || !newPassword || !confirmPassword) {
+    if (!currentPassword) {
         e.preventDefault();
-        alert('Please fill in all password fields');
-        return;
-    }
-
-    if (newPassword.length < 6) {
-        e.preventDefault();
-        alert('New password must be at least 6 characters long');
-        return;
-    }
-
-    if (newPassword !== confirmPassword) {
-        e.preventDefault();
-        alert('New password and confirmation do not match');
+        alert('Please enter your current password');
         return;
     }
 });

@@ -1,6 +1,8 @@
 <?php
 
 require_once 'app/models/UserModel.php';
+require_once 'app/models/OrderModel.php';
+require_once 'app/models/ProductModel.php';
 
 class AuthController
 {
@@ -366,7 +368,7 @@ class AuthController
     }
 
     /**
-     * Change user password
+     * Initiate password change process
      */
     public function changePassword()
     {
@@ -389,8 +391,6 @@ class AuthController
 
         // Get form data
         $currentPassword = $_POST['current_password'] ?? '';
-        $newPassword = $_POST['new_password'] ?? '';
-        $confirmPassword = $_POST['confirm_password'] ?? '';
 
         $errors = [];
 
@@ -401,34 +401,215 @@ class AuthController
             $errors[] = 'Current password is incorrect';
         }
 
-        if (empty($newPassword)) {
-            $errors[] = 'New password is required';
-        } elseif (strlen($newPassword) < 6) {
-            $errors[] = 'New password must be at least 6 characters long';
-        }
-
-        if (empty($confirmPassword)) {
-            $errors[] = 'Password confirmation is required';
-        } elseif ($newPassword !== $confirmPassword) {
-            $errors[] = 'New password and confirmation do not match';
-        }
-
-        // If no validation errors, update password
+        // If no validation errors, proceed to product verification
         if (empty($errors)) {
-            $user->setPassword($newPassword);
-
-            if ($user->save()) {
-                $_SESSION['success_message'] = 'Password changed successfully';
-            } else {
-                $_SESSION['error_message'] = 'Failed to change password. Please try again.';
-            }
+            // Store user ID in session for the password change process
+            $_SESSION['password_change_user_id'] = $user->getId();
+            
+            // Redirect to product verification page
+            header('Location: /Auth/verifyPurchaseForPasswordChange');
+            exit();
         } else {
             $_SESSION['error_message'] = implode('<br>', $errors);
+            header('Location: /Auth/profile');
+            exit();
         }
-
-        // Redirect back to profile page
-        header('Location: /Auth/profile');
-        exit();
+    }
+    
+    /**
+     * Verify user's purchase for password change security
+     */
+    public function verifyPurchaseForPasswordChange()
+    {
+        // Require login
+        $this->requireLogin();
+        
+        // Check if user ID is set in session
+        if (!isset($_SESSION['password_change_user_id'])) {
+            $_SESSION['error_message'] = 'Invalid password change request';
+            header('Location: /Auth/profile');
+            exit();
+        }
+        
+        $userId = $_SESSION['password_change_user_id'];
+        
+        // Initialize OrderModel to get purchased products
+        $orderModel = new OrderModel();
+        
+        // Get up to 4 products the user has purchased
+        $purchasedProducts = $orderModel->getUserPurchasedProducts($userId, 4);
+        
+        // Get all product IDs the user has purchased (for verification)
+        $purchasedProductIds = array_column($purchasedProducts, 'id');
+        
+        // Store purchased product IDs in session for verification
+        $_SESSION['password_change_purchased_product_ids'] = $purchasedProductIds;
+        
+        // Initialize attempt counter if not set
+        if (!isset($_SESSION['password_change_verification_attempts'])) {
+            $_SESSION['password_change_verification_attempts'] = 0;
+        }
+        
+        // Check if we need to show random products to fill up to 5 options
+        $randomProductsNeeded = 5 - count($purchasedProducts);
+        $randomProducts = [];
+        
+        if ($randomProductsNeeded > 0 && !empty($purchasedProductIds)) {
+            // Get random products that the user has NOT purchased
+            $productModel = new ProductModel();
+            $allProducts = $productModel->findAll();
+            
+            // Filter out products the user has already purchased
+            $unpurchasedProducts = array_filter($allProducts, function($product) use ($purchasedProductIds) {
+                return !in_array($product['id'], $purchasedProductIds);
+            });
+            
+            // Randomly select products
+            shuffle($unpurchasedProducts);
+            $randomProducts = array_slice($unpurchasedProducts, 0, $randomProductsNeeded);
+        }
+        
+        // Combine purchased and random products
+        $allProducts = array_merge($purchasedProducts, $randomProducts);
+        
+        // Shuffle the products to randomize the order
+        shuffle($allProducts);
+        
+        // Check if the form was submitted
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Increment attempt counter
+            $_SESSION['password_change_verification_attempts']++;
+            
+            // Get the selected product ID
+            $selectedProductId = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
+            
+            // Check if the selected product is valid
+            $isValidSelection = ($selectedProductId === 0 && empty($purchasedProductIds)) || 
+                               in_array($selectedProductId, $purchasedProductIds);
+            
+            if ($isValidSelection) {
+                // Mark as verified
+                $_SESSION['password_change_verified'] = true;
+                
+                // Redirect to complete password change
+                header('Location: /Auth/completePasswordChange');
+                exit();
+            } else {
+                // Check if max attempts reached
+                if ($_SESSION['password_change_verification_attempts'] >= 3) {
+                    // Clear session variables
+                    unset($_SESSION['password_change_user_id']);
+                    unset($_SESSION['password_change_purchased_product_ids']);
+                    unset($_SESSION['password_change_verification_attempts']);
+                    
+                    $_SESSION['error_message'] = 'Too many failed verification attempts. Please try again later.';
+                    header('Location: /Auth/profile');
+                    exit();
+                }
+                
+                $_SESSION['error_message'] = 'Incorrect selection. Please try again.';
+            }
+        }
+        
+        // Load the view
+        $data = [
+            'products' => $allProducts,
+            'hasPurchases' => !empty($purchasedProductIds),
+            'attemptsLeft' => 3 - $_SESSION['password_change_verification_attempts'],
+            'errors' => isset($_SESSION['error_message']) ? [$_SESSION['error_message']] : []
+        ];
+        
+        // Clear any error message after using it
+        if (isset($_SESSION['error_message'])) {
+            unset($_SESSION['error_message']);
+        }
+        
+        // Load the view
+        include 'app/views/auth/verify_purchase_password_change.php';
+    }
+    
+    /**
+     * Complete password change after verification
+     */
+    public function completePasswordChange()
+    {
+        // Require login
+        $this->requireLogin();
+        
+        // Check if user is verified
+        if (!isset($_SESSION['password_change_verified']) || 
+            !$_SESSION['password_change_verified'] || 
+            !isset($_SESSION['password_change_user_id'])) {
+            
+            $_SESSION['error_message'] = 'You must verify your identity before changing your password';
+            header('Location: /Auth/profile');
+            exit();
+        }
+        
+        $userId = $_SESSION['password_change_user_id'];
+        $user = $this->userModel->findById($userId);
+        
+        if (!$user) {
+            $_SESSION['error_message'] = 'User not found';
+            header('Location: /Auth/profile');
+            exit();
+        }
+        
+        // Handle form submission
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Get form data
+            $newPassword = $_POST['new_password'] ?? '';
+            $confirmPassword = $_POST['confirm_password'] ?? '';
+            
+            $errors = [];
+            
+            // Validate input
+            if (empty($newPassword)) {
+                $errors[] = 'New password is required';
+            } elseif (strlen($newPassword) < 6) {
+                $errors[] = 'New password must be at least 6 characters long';
+            }
+            
+            if (empty($confirmPassword)) {
+                $errors[] = 'Password confirmation is required';
+            } elseif ($newPassword !== $confirmPassword) {
+                $errors[] = 'New password and confirmation do not match';
+            }
+            
+            // If no validation errors, update password
+            if (empty($errors)) {
+                $user->setPassword($newPassword);
+                
+                if ($user->save()) {
+                    // Clear session variables
+                    unset($_SESSION['password_change_user_id']);
+                    unset($_SESSION['password_change_purchased_product_ids']);
+                    unset($_SESSION['password_change_verification_attempts']);
+                    unset($_SESSION['password_change_verified']);
+                    
+                    $_SESSION['success_message'] = 'Password changed successfully';
+                    header('Location: /Auth/profile');
+                    exit();
+                } else {
+                    $_SESSION['error_message'] = 'Failed to change password. Please try again.';
+                }
+            } else {
+                $_SESSION['error_message'] = implode('<br>', $errors);
+            }
+        }
+        
+        // Load the view
+        $data = [
+            'errors' => isset($_SESSION['error_message']) ? [$_SESSION['error_message']] : []
+        ];
+        
+        // Clear any error message after using it
+        if (isset($_SESSION['error_message'])) {
+            unset($_SESSION['error_message']);
+        }
+        
+        // Load the view
+        include 'app/views/auth/complete_password_change.php';
     }
     
     /**
