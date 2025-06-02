@@ -684,24 +684,61 @@ class AuthController
         // Get user's purchased products
         require_once 'app/models/OrderModel.php';
         $orderModel = new OrderModel();
-        $purchasedProducts = $orderModel->getUserPurchasedProducts($userId, 4); // Get 4 products max
+        $purchasedProducts = $orderModel->getUserPurchasedProducts($userId, 2); // Get 2 products max for user verification
         
-        // Create a list of products to display, including the option for "I haven't purchased anything"
-        $productOptions = $purchasedProducts;
+        // Create a list of products to display
+        $productOptions = [];
         
-        // Add some random products if we don't have enough purchased products
+        // If user has purchased products, add them to options
+        if (!empty($purchasedProducts)) {
+            // Only use 1 purchased product for verification to make it more challenging
+            $randomPurchasedProduct = $purchasedProducts[array_rand($purchasedProducts)];
+            
+            // Ensure the purchased product has an image
+            if (empty($randomPurchasedProduct['image'])) {
+                $randomPurchasedProduct['image'] = $productModel->getRandomProductImage();
+            }
+            
+            $productOptions[] = $randomPurchasedProduct;
+            
+            // Get the IDs of all purchased products for verification later
+            $purchasedProductIds = array_column($purchasedProducts, 'id');
+        } else {
+            $purchasedProductIds = [];
+        }
+        
+        // Get random products that the user hasn't purchased
         $productModel = new ProductModel();
-        $randomProducts = $productModel->findAll([], 5 - count($productOptions));
+        $randomProducts = [];
         
-        foreach ($randomProducts as $product) {
-            if (count($productOptions) < 4) {
-                $productOptions[] = [
+        // If we have purchased products, get random products excluding those
+        if (!empty($purchasedProductIds)) {
+            // Get 4 random products that the user hasn't purchased
+            $randomProducts = $productModel->getRandomProductsExcluding($userId, $purchasedProductIds, 4);
+        } else {
+            // If user hasn't purchased anything, just get 4 random products
+            $randomProducts = $productModel->findAll(['status' => 'active'], 4);
+            $randomProducts = array_map(function($product) {
+                return [
                     'id' => $product->getId(),
                     'name' => $product->getName(),
                     'price' => $product->getPrice(),
                     'image' => $product->getImage()
                 ];
+            }, $randomProducts);
+        }
+        
+        // Ensure all random products have images
+        foreach ($randomProducts as $key => $product) {
+            // If product has no image, generate a random one
+            if (empty($product['image'])) {
+                $randomProducts[$key]['image'] = $productModel->getRandomProductImage();
             }
+        }
+        
+        // Add random products to options
+        foreach ($randomProducts as $product) {
+            $productOptions[] = $product;
         }
         
         // Shuffle the products to randomize the position of the actual purchased product
@@ -716,7 +753,7 @@ class AuthController
         ];
         
         // Store the correct answer in session
-        $_SESSION['purchased_product_ids'] = array_column($purchasedProducts, 'id');
+        $_SESSION['purchased_product_ids'] = $purchasedProductIds;
         
         // Check if form is submitted
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {

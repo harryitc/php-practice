@@ -1,337 +1,506 @@
 <?php
 
-require_once 'app/models/ProductModel.php';
-require_once 'app/models/CategoryModel.php';
-require_once 'app/controllers/AuthController.php';
+require_once 'app/core/Database.php';
 
-class ProductController{
-    private $authController;
-    private $productModel;
-    private $categoryModel;
+class ProductModel{
+    private $ID;
+    private $CategoryID;
+    private $Name;
+    private $Description;
+    private $Price;
+    private $Status;
+    private $InventoryCount;
+    private $IncomingCount;
+    private $OutOfStock;
+    private $Grade;
+    private $Image;
+    private $CreatedAt;
+    private $UpdatedAt;
 
-    public function __construct(){
-        // Only start session if one doesn't already exist
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
+    private $db;
+
+    public function __construct($ID = null, $Name = '', $Description = '', $Price = 0, $Status = 'active', $InventoryCount = 0, $IncomingCount = 0, $OutOfStock = 0, $Grade = 'A', $Image = '', $CategoryID = null){
+        $this->db = Database::getInstance();
+
+        $this->ID = $ID;
+        $this->CategoryID = $CategoryID;
+        $this->Name = $Name;
+        $this->Description = $Description;
+        $this->Price = $Price;
+        $this->Status = $Status;
+        $this->InventoryCount = $InventoryCount;
+        $this->IncomingCount = $IncomingCount;
+        $this->OutOfStock = $OutOfStock;
+        $this->Grade = $Grade;
+        $this->Image = $Image;
+    }
+
+    /**
+     * Find all products
+     *
+     * @param array $filters Optional filters
+     * @param int $limit Limit results
+     * @param int $offset Offset for pagination
+     * @return array
+     */
+    public function findAll($filters = [], $limit = null, $offset = null)
+    {
+        $sql = "SELECT * FROM products WHERE 1=1";
+        $params = [];
+
+        // Apply filters
+        if (!empty($filters['search'])) {
+            $searchTerm = "%" . $filters['search'] . "%";
+            $sql .= " AND (name LIKE :search_name OR description LIKE :search_desc)";
+            $params['search_name'] = $searchTerm;
+            $params['search_desc'] = $searchTerm;
         }
-        $this->productModel = new ProductModel();
-        $this->categoryModel = new CategoryModel();
-        $this->authController = new AuthController();
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND status = :status";
+            $params['status'] = $filters['status'];
+        }
+
+        if (!empty($filters['grade'])) {
+            $sql .= " AND grade = :grade";
+            $params['grade'] = $filters['grade'];
+        }
+
+        if (isset($filters['inventory']) && $filters['inventory'] === 'in_stock') {
+            $sql .= " AND inventory_count > 0";
+        } elseif (isset($filters['inventory']) && $filters['inventory'] === 'out_of_stock') {
+            $sql .= " AND inventory_count = 0";
+        }
+
+        if (!empty($filters['category_id'])) {
+            $sql .= " AND category_id = :category_id";
+            $params['category_id'] = $filters['category_id'];
+        }
+
+        // Add sorting for customer view
+        if (!empty($filters['sort'])) {
+            switch ($filters['sort']) {
+                case 'name_asc':
+                    $sql .= " ORDER BY name ASC";
+                    break;
+                case 'name_desc':
+                    $sql .= " ORDER BY name DESC";
+                    break;
+                case 'price_asc':
+                    $sql .= " ORDER BY price ASC";
+                    break;
+                case 'price_desc':
+                    $sql .= " ORDER BY price DESC";
+                    break;
+                case 'newest':
+                    $sql .= " ORDER BY created_at DESC";
+                    break;
+                case 'oldest':
+                    $sql .= " ORDER BY created_at ASC";
+                    break;
+                default:
+                    $sql .= " ORDER BY id DESC";
+            }
+        } else {
+            $sql .= " ORDER BY id DESC";
+        }
+
+        // Add limit and offset
+        if ($limit !== null) {
+            $sql .= " LIMIT " . (int)$limit;
+
+            if ($offset !== null) {
+                $sql .= " OFFSET " . (int)$offset;
+            }
+        }
+
+        // Debug: Log the SQL query and parameters
+        error_log("ProductModel::findAll SQL: " . $sql);
+        error_log("ProductModel::findAll Params: " . print_r($params, true));
+
+        $results = $this->db->query($sql)->fetchAll($params);
+
+        // Debug: Log the number of results
+        error_log("ProductModel::findAll Results count: " . count($results));
+
+        $products = [];
+        foreach ($results as $row) {
+            $product = new ProductModel(
+                $row['id'],
+                $row['name'],
+                $row['description'],
+                $row['price'],
+                $row['status'],
+                $row['inventory_count'],
+                $row['incoming_count'],
+                $row['out_of_stock'],
+                $row['grade'],
+                $row['image'],
+                $row['category_id']
+            );
+            $products[] = $product;
+        }
+
+        return $products;
     }
 
-    public function index(){
-        $this->list();
+    /**
+     * Count all products with filters
+     *
+     * @param array $filters Optional filters
+     * @return int
+     */
+    public function countAll($filters = [])
+    {
+        $sql = "SELECT COUNT(*) as count FROM products WHERE 1=1";
+        $params = [];
+
+        // Apply filters
+        if (!empty($filters['search'])) {
+            $searchTerm = "%" . $filters['search'] . "%";
+            $sql .= " AND (name LIKE :search_name OR description LIKE :search_desc)";
+            $params['search_name'] = $searchTerm;
+            $params['search_desc'] = $searchTerm;
+        }
+
+        if (!empty($filters['status'])) {
+            $sql .= " AND status = :status";
+            $params['status'] = $filters['status'];
+        }
+
+        if (!empty($filters['grade'])) {
+            $sql .= " AND grade = :grade";
+            $params['grade'] = $filters['grade'];
+        }
+
+        if (isset($filters['inventory']) && $filters['inventory'] === 'in_stock') {
+            $sql .= " AND inventory_count > 0";
+        } elseif (isset($filters['inventory']) && $filters['inventory'] === 'out_of_stock') {
+            $sql .= " AND inventory_count = 0";
+        }
+
+        if (!empty($filters['category_id'])) {
+            $sql .= " AND category_id = :category_id";
+            $params['category_id'] = $filters['category_id'];
+        }
+
+        $result = $this->db->query($sql)->fetch($params);
+        return $result['count'];
     }
 
-    public function list(){
-        // Get query parameters
-        $search = $_GET['search'] ?? '';
-        $search = trim($search);
-        $categoryId = $_GET['category'] ?? '';
-        $sort = $_GET['sort'] ?? '';
-        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+    /**
+     * Find product by ID
+     *
+     * @param int $id
+     * @return ProductModel|null
+     */
+    public function findById($id)
+    {
+        $sql = "SELECT * FROM products WHERE id = :id";
+        $result = $this->db->query($sql)->fetch(['id' => $id]);
 
-        // Check if user is admin
-        $isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
+        if (!$result) {
+            return null;
+        }
 
-        if ($isAdmin) {
-            // Admin view - show all products with admin filters
-            $status = $_GET['status'] ?? '';
-            $grade = $_GET['grade'] ?? '';
-            $inventory = $_GET['inventory'] ?? '';
-            $perPage = 10;
+        return new ProductModel(
+            $result['id'],
+            $result['name'],
+            $result['description'],
+            $result['price'],
+            $result['status'],
+            $result['inventory_count'],
+            $result['incoming_count'],
+            $result['out_of_stock'],
+            $result['grade'],
+            $result['image'],
+            $result['category_id']
+        );
+    }
 
-            $filters = [
-                'search' => $search,
-                'status' => $status,
-                'grade' => $grade,
-                'inventory' => $inventory,
-                'category_id' => $categoryId
+    /**
+     * Save product (insert or update)
+     *
+     * @return bool
+     */
+    public function save()
+    {
+        if ($this->ID) {
+            return $this->update();
+        } else {
+            return $this->insert();
+        }
+    }
+
+    /**
+     * Insert new product
+     *
+     * @return bool
+     */
+    private function insert()
+    {
+        $sql = "INSERT INTO products (category_id, name, description, price, status, inventory_count, incoming_count, out_of_stock, grade, image)
+                VALUES (:category_id, :name, :description, :price, :status, :inventory_count, :incoming_count, :out_of_stock, :grade, :image)";
+
+        $result = $this->db->query($sql)->bind([
+            'category_id' => $this->CategoryID,
+            'name' => $this->Name,
+            'description' => $this->Description,
+            'price' => $this->Price,
+            'status' => $this->Status,
+            'inventory_count' => $this->InventoryCount,
+            'incoming_count' => $this->IncomingCount,
+            'out_of_stock' => $this->OutOfStock,
+            'grade' => $this->Grade,
+            'image' => $this->Image
+        ])->execute();
+
+        if ($result) {
+            $this->ID = $this->db->lastInsertId();
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Update existing product
+     *
+     * @return bool
+     */
+    private function update()
+    {
+        $sql = "UPDATE products
+                SET category_id = :category_id,
+                    name = :name,
+                    description = :description,
+                    price = :price,
+                    status = :status,
+                    inventory_count = :inventory_count,
+                    incoming_count = :incoming_count,
+                    out_of_stock = :out_of_stock,
+                    grade = :grade,
+                    image = :image
+                WHERE id = :id";
+
+        return $this->db->query($sql)->bind([
+            'id' => $this->ID,
+            'category_id' => $this->CategoryID,
+            'name' => $this->Name,
+            'description' => $this->Description,
+            'price' => $this->Price,
+            'status' => $this->Status,
+            'inventory_count' => $this->InventoryCount,
+            'incoming_count' => $this->IncomingCount,
+            'out_of_stock' => $this->OutOfStock,
+            'grade' => $this->Grade,
+            'image' => $this->Image
+        ])->execute();
+    }
+
+    /**
+     * Delete product
+     *
+     * @return bool
+     */
+    public function delete()
+    {
+        if (!$this->ID) {
+            return false;
+        }
+
+        $sql = "DELETE FROM products WHERE id = :id";
+        return $this->db->query($sql)->bind(['id' => $this->ID])->execute();
+    }
+
+    /**
+     * Get unique values for a column
+     *
+     * @param string $column
+     * @return array
+     */
+    public function getUniqueValues($column)
+    {
+        $validColumns = ['status', 'grade'];
+
+        if (!in_array(strtolower($column), $validColumns)) {
+            return [];
+        }
+
+        $sql = "SELECT DISTINCT " . strtolower($column) . " FROM products ORDER BY " . strtolower($column);
+        $results = $this->db->query($sql)->fetchAll();
+
+        $values = [];
+        foreach ($results as $row) {
+            $values[] = $row[strtolower($column)];
+        }
+
+        return $values;
+    }
+
+    public function getID(){
+        return $this->ID;
+    }
+
+    public function setID($ID){
+        $this->ID = $ID;
+    }
+
+    public function getCategoryID(){
+        return $this->CategoryID;
+    }
+
+    public function setCategoryID($CategoryID){
+        $this->CategoryID = $CategoryID;
+    }
+
+    public function getName(){
+        return $this->Name;
+    }
+
+    public function setName($Name){
+        $this->Name = $Name;
+    }
+
+    public function getDescription(){
+        return $this->Description;
+    }
+
+    public function setDescription($Description){
+        $this->Description = $Description;
+    }
+
+    public function getPrice(){
+        return $this->Price;
+    }
+
+    public function setPrice($Price){
+        $this->Price = $Price;
+    }
+
+    public function getStatus(){
+        return $this->Status;
+    }
+
+    public function setStatus($Status){
+        $this->Status = $Status;
+    }
+
+    public function getInventoryCount(){
+        return $this->InventoryCount;
+    }
+
+    public function setInventoryCount($InventoryCount){
+        $this->InventoryCount = $InventoryCount;
+    }
+
+    public function getIncomingCount(){
+        return $this->IncomingCount;
+    }
+
+    public function setIncomingCount($IncomingCount){
+        $this->IncomingCount = $IncomingCount;
+    }
+
+    public function getOutOfStock(){
+        return $this->OutOfStock;
+    }
+
+    public function setOutOfStock($OutOfStock){
+        $this->OutOfStock = $OutOfStock;
+    }
+
+    public function getGrade(){
+        return $this->Grade;
+    }
+
+    public function setGrade($Grade){
+        $this->Grade = $Grade;
+    }
+
+    public function getImage(){
+        return $this->Image;
+    }
+
+    public function setImage($Image){
+        $this->Image = $Image;
+    }
+
+    public function getInventoryStatus(){
+        if ($this->InventoryCount == 0) {
+            return "0 in stock";
+        } else {
+            return "{$this->InventoryCount} in stock";
+        }
+    }
+
+    /**
+     * Get random products excluding those a user has purchased
+     * Used for product verification in password reset
+     *
+     * @param int $userId User ID to exclude their purchased products
+     * @param array $excludeProductIds Array of product IDs to exclude
+     * @param int $limit Maximum number of products to return
+     * @return array Array of products in the same format as getUserPurchasedProducts
+     */
+    public function getRandomProductsExcluding($userId, $excludeProductIds = [], $limit = 4)
+    {
+        // Convert excludeProductIds to a comma-separated string for the SQL query
+        $excludeIds = !empty($excludeProductIds) ? implode(',', array_map('intval', $excludeProductIds)) : '0';
+        
+        // Get random active products that the user hasn't purchased
+        $sql = "SELECT p.id, p.name, p.price, p.image 
+                FROM products p 
+                WHERE p.status = 'active' 
+                AND p.inventory_count > 0 
+                AND p.id NOT IN ($excludeIds) 
+                AND p.id NOT IN (
+                    SELECT DISTINCT oi.product_id 
+                    FROM order_items oi 
+                    JOIN orders o ON oi.order_id = o.id 
+                    WHERE o.user_id = :user_id AND o.status != 'cancelled'
+                ) 
+                ORDER BY RAND() 
+                LIMIT :limit";
+        
+        $results = $this->db->query($sql)->fetchAll([
+            'user_id' => $userId,
+            'limit' => (int)$limit
+        ]);
+        
+        $products = [];
+        foreach ($results as $row) {
+            $products[] = [
+                'id' => $row['id'],
+                'name' => $row['name'],
+                'price' => $row['price'],
+                'image' => $row['image']
             ];
-        } else {
-            // Customer view - show all products (temporarily remove status filter for debugging)
-            $perPage = 12;
-
-            $filters = [
-                'search' => $search,
-                // 'status' => 'active', // Temporarily commented out to show all products
-                'category_id' => $categoryId,
-                'sort' => $sort
-            ];
         }
-
-        try {
-            // Get total number of filtered products
-            $totalProducts = $this->productModel->countAll($filters);
-            $totalPages = ceil($totalProducts / $perPage);
-
-            // Ensure page is within valid range
-            if ($page < 1) $page = 1;
-            if ($page > $totalPages && $totalPages > 0) $page = $totalPages;
-
-            // Calculate offset for pagination
-            $offset = ($page - 1) * $perPage;
-
-            // Get products for current page
-            $products = $this->productModel->findAll($filters, $perPage, $offset);
-        } catch (Exception $e) {
-            // Log the error and show empty results
-            error_log("Product listing error: " . $e->getMessage());
-            $products = [];
-            $totalProducts = 0;
-            $totalPages = 0;
-            $currentPage = 1;
-
-            // Set error message for display
-            $_SESSION['error_message'] = 'Unable to load products. Please try again later.';
-        }
-
-        // Get categories for filter dropdown
-        $categories = $this->categoryModel->findAll();
-
-        if ($isAdmin) {
-            // Admin specific data
-            $statuses = $this->productModel->getUniqueValues('status');
-            $grades = $this->productModel->getUniqueValues('grade');
-
-            $currentPage = $page;
-            $selectedStatus = $status;
-            $selectedGrade = $grade;
-            $selectedInventory = $inventory;
-            $selectedCategoryId = $categoryId;
-        } else {
-            // Customer specific data
-            $currentPage = $page;
-            $selectedCategoryId = $categoryId;
-            $selectedSort = $sort;
-        }
-
-        include 'app/views/product/list.php';
+        
+        return $products;
     }
-
-    public function removeQueryParam($param) {
-        $params = $_GET;
-        unset($params[$param]);
-
-        if (empty($params)) {
-            return '/Product/list';
+    
+    /**
+     * Get a random product image from the database
+     * Used for generating random product images in verification
+     *
+     * @return string URL of a random product image
+     */
+    public function getRandomProductImage()
+    {
+        // Get a random product image from the database
+        $sql = "SELECT image FROM products 
+                WHERE status = 'active' AND image != '' 
+                ORDER BY RAND() LIMIT 1";
+        
+        $result = $this->db->query($sql)->fetch();
+        
+        if ($result && !empty($result['image'])) {
+            return $result['image'];
         }
-
-        return '/Product/list?' . http_build_query($params);
-    }
-
-    public function buildPaginationUrl($page) {
-        $params = $_GET;
-        $params['page'] = $page;
-
-        return '/Product/list?' . http_build_query($params);
-    }
-
-    public function add(){
-        // Require admin privileges
-        $this->authController->requireAdmin();
-
-        $errors = [];
-        $categories = $this->categoryModel->findAll();
-
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            // Get form data
-            $name = $_POST['name'] ?? '';
-            $description = $_POST['description'] ?? '';
-            $price = $_POST['price'] ?? 0;
-            $status = $_POST['status'] ?? 'Scoping';
-            $inventoryCount = $_POST['inventory_count'] ?? 45;
-            $incomingCount = $_POST['incoming_count'] ?? 0;
-            $outOfStock = $_POST['out_of_stock'] ?? 11;
-            $grade = $_POST['grade'] ?? 'A';
-            $image = $_POST['image'] ?? '';
-            $categoryId = $_POST['category_id'] ?? null;
-
-            // Validation
-            if (empty($name)) {
-                $errors[] = 'Product name is required.';
-            } elseif (strlen($name) < 10 || strlen($name) > 100) {
-                $errors[] = 'Product name must be between 10 and 100 characters.';
-            }
-
-            if (empty($description)) {
-                $errors[] = 'Product description is required.';
-            }
-
-            if (!is_numeric($price) || $price <= 0) {
-                $errors[] = 'Price must be a positive number greater than 0.';
-            }
-
-            if (!in_array($status, ['Scoping', 'Quoting', 'Production', 'Shipped'])) {
-                $errors[] = 'Invalid status selected.';
-            }
-
-            if (!is_numeric($inventoryCount) || $inventoryCount < 0) {
-                $errors[] = 'Inventory count must be a non-negative number.';
-            }
-
-            if (!is_numeric($incomingCount) || $incomingCount < 0) {
-                $errors[] = 'Incoming count must be a non-negative number.';
-            }
-
-            if (!is_numeric($outOfStock) || $outOfStock < 0) {
-                $errors[] = 'Out of stock count must be a non-negative number.';
-            }
-
-            if (!in_array($grade, ['A', 'B', 'C'])) {
-                $errors[] = 'Invalid grade selected.';
-            }
-
-            // If no errors, create the product
-            if (empty($errors)) {
-                $product = new ProductModel(
-                    null,
-                    $name,
-                    $description,
-                    $price,
-                    $status,
-                    $inventoryCount,
-                    $incomingCount,
-                    $outOfStock,
-                    $grade,
-                    $image,
-                    $categoryId
-                );
-
-                if ($product->save()) {
-                    // Set success message
-                    $_SESSION['success_message'] = 'Product "' . htmlspecialchars($name) . '" has been added successfully.';
-                    header('Location: /Product/list');
-                    exit();
-                } else {
-                    $errors[] = 'Failed to save product. Please try again.';
-                }
-            }
-        }
-
-        include 'app/views/product/add.php';
-    }
-
-    public function edit($id){
-        // Require admin privileges
-        $this->authController->requireAdmin();
-
-        $errors = [];
-        $product = $this->productModel->findById($id);
-        $categories = $this->categoryModel->findAll();
-
-        // If product not found, show error
-        if (!$product) {
-            include 'app/views/error/not_found.php';
-            return;
-        }
-
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            // Validate input
-            $name = $_POST['name'] ?? '';
-            $description = $_POST['description'] ?? '';
-            $price = $_POST['price'] ?? 0;
-            $status = $_POST['status'] ?? $product->getStatus();
-            $inventoryCount = $_POST['inventory_count'] ?? $product->getInventoryCount();
-            $incomingCount = $_POST['incoming_count'] ?? $product->getIncomingCount();
-            $outOfStock = $_POST['out_of_stock'] ?? $product->getOutOfStock();
-            $grade = $_POST['grade'] ?? $product->getGrade();
-            $image = $_POST['image'] ?? $product->getImage();
-            $categoryId = $_POST['category_id'] ?? $product->getCategoryID();
-
-            // Validation
-            if (empty($name)) {
-                $errors[] = 'Product name is required.';
-            } elseif (strlen($name) < 10 || strlen($name) > 100) {
-                $errors[] = 'Product name must be between 10 and 100 characters.';
-            }
-
-            if (!is_numeric($price) || $price <= 0) {
-                $errors[] = 'Price must be a positive number greater than 0.';
-            }
-
-            if (!is_numeric($inventoryCount) || $inventoryCount < 0) {
-                $errors[] = 'Inventory count must be a non-negative number.';
-            }
-
-            if (!is_numeric($incomingCount) || $incomingCount < 0) {
-                $errors[] = 'Incoming count must be a non-negative number.';
-            }
-
-            if (!is_numeric($outOfStock) || $outOfStock < 0) {
-                $errors[] = 'Out of stock count must be a non-negative number.';
-            }
-
-            // If no errors, update the product
-            if (empty($errors)) {
-                $product->setName($name);
-                $product->setDescription($description);
-                $product->setPrice($price);
-                $product->setStatus($status);
-                $product->setInventoryCount($inventoryCount);
-                $product->setIncomingCount($incomingCount);
-                $product->setOutOfStock($outOfStock);
-                $product->setGrade($grade);
-                $product->setImage($image);
-                $product->setCategoryID($categoryId);
-
-                if ($product->save()) {
-                    // Set success message
-                    $_SESSION['success_message'] = 'Product "' . htmlspecialchars($name) . '" has been updated successfully.';
-                    header("Location: /Product/detail/{$id}");
-                    exit();
-                } else {
-                    $errors[] = 'Failed to update product. Please try again.';
-                }
-            }
-        }
-
-        // Display the edit form
-        include 'app/views/product/edit.php';
-    }
-
-    public function detail($id){
-        $product = $this->productModel->findById($id);
-
-        // If product not found, show error
-        if (!$product) {
-            include 'app/views/error/not_found.php';
-            return;
-        }
-
-        // Get category if available
-        $category = null;
-        if ($product->getCategoryID()) {
-            $category = $this->categoryModel->findById($product->getCategoryID());
-        }
-
-        // Display the product details
-        include 'app/views/product/detail.php';
-    }
-
-    public function delete($id){
-        // Require admin privileges
-        $this->authController->requireAdmin();
-
-        $product = $this->productModel->findById($id);
-
-        // If product not found, show error
-        if (!$product) {
-            include 'app/views/error/not_found.php';
-            return;
-        }
-
-        $productName = $product->getName();
-
-        if ($product->delete()) {
-            // Set success message in session
-            $_SESSION['success_message'] = 'Product "' . htmlspecialchars($productName) . '" has been deleted successfully.';
-        } else {
-            $_SESSION['error_message'] = 'Failed to delete product. Please try again.';
-        }
-
-        // Redirect to product list
-        header('Location: /Product/list');
-        exit();
+        
+        // Default image if no product images are found
+        return '/assets/img/product-placeholder.jpg';
     }
 }
