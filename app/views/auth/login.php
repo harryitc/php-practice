@@ -86,11 +86,16 @@ include 'app/views/layouts/customer_header.php';
                             <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
                             <label for="password"><i class="bi bi-lock me-2"></i>Password</label>
                         </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="remember" name="remember">
-                            <label class="form-check-label" for="remember">
-                                Remember me
-                            </label>
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="remember" name="remember">
+                                <label class="form-check-label" for="remember">
+                                    Remember me
+                                </label>
+                            </div>
+                            <div>
+                                <a href="/Auth/forgotPassword">Forgot password?</a>
+                            </div>
                         </div>
                         <button type="submit" class="btn btn-primary btn-login">
                             <i class="bi bi-box-arrow-in-right me-2"></i>Login

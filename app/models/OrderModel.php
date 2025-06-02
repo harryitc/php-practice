@@ -807,6 +807,46 @@ class OrderModel
     }
 
     /**
+     * Get products purchased by a user
+     * 
+     * @param int $userId
+     * @param int $limit Maximum number of products to return
+     * @return array
+     */
+    public function getUserPurchasedProducts($userId, $limit = 5)
+    {
+        if (!$userId) {
+            return [];
+        }
+        
+        $sql = "SELECT DISTINCT p.id, p.name, p.price, p.image, oi.order_id, o.created_at 
+                FROM products p
+                JOIN order_items oi ON p.id = oi.product_id
+                JOIN orders o ON oi.order_id = o.id
+                WHERE o.user_id = :user_id AND o.status != 'cancelled'
+                ORDER BY o.created_at DESC
+                LIMIT :limit";
+        
+        $results = $this->db->query($sql)->fetchAll([
+            'user_id' => $userId,
+            'limit' => (int)$limit
+        ]);
+        
+        $products = [];
+        foreach ($results as $row) {
+            $products[] = [
+                'id' => $row['id'],
+                'name' => $row['name'],
+                'price' => $row['price'],
+                'image' => $row['image'],
+                'order_id' => $row['order_id']
+            ];
+        }
+        
+        return $products;
+    }
+
+    /**
      * Get order summary for display
      */
     public function getSummary()

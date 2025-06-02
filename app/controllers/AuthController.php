@@ -430,4 +430,228 @@ class AuthController
         header('Location: /Auth/profile');
         exit();
     }
+    
+    /**
+     * Display forgot password form
+     */
+    public function forgotPassword()
+    {
+        // If user is already logged in, redirect to home page
+        if ($this->isLoggedIn()) {
+            header('Location: /');
+            exit();
+        }
+        
+        $errors = [];
+        
+        // Check if form is submitted
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Get form data
+            $email = $_POST['email'] ?? '';
+            
+            // Validate input
+            if (empty($email)) {
+                $errors[] = 'Email is required';
+            } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $errors[] = 'Invalid email format';
+            }
+            
+            // If no validation errors, check if email exists
+            if (empty($errors)) {
+                $user = $this->userModel->findByEmail($email);
+                
+                if ($user) {
+                    // Store user ID in session for security verification
+                    $_SESSION['reset_password_user_id'] = $user->getId();
+                    
+                    // Redirect to product verification page
+                    header('Location: /Auth/verifyPurchase');
+                    exit();
+                } else {
+                    $errors[] = 'Email not found in our records';
+                }
+            }
+        }
+        
+        // Display forgot password form
+        include 'app/views/auth/forgot_password.php';
+    }
+    
+    /**
+     * Verify user's purchase for password reset security
+     */
+    public function verifyPurchase()
+    {
+        // Check if reset_password_user_id exists in session
+        if (!isset($_SESSION['reset_password_user_id'])) {
+            header('Location: /Auth/forgotPassword');
+            exit();
+        }
+        
+        $userId = $_SESSION['reset_password_user_id'];
+        $user = $this->userModel->findById($userId);
+        
+        if (!$user) {
+            unset($_SESSION['reset_password_user_id']);
+            $_SESSION['error_message'] = 'Invalid user session. Please try again.';
+            header('Location: /Auth/forgotPassword');
+            exit();
+        }
+        
+        $errors = [];
+        
+        // Get user's purchased products
+        require_once 'app/models/OrderModel.php';
+        $orderModel = new OrderModel();
+        $purchasedProducts = $orderModel->getUserPurchasedProducts($userId, 4); // Get 4 products max
+        
+        // Create a list of products to display, including the option for "I haven't purchased anything"
+        $productOptions = $purchasedProducts;
+        
+        // Add some random products if we don't have enough purchased products
+        $productModel = new ProductModel();
+        $randomProducts = $productModel->findAll([], 5 - count($productOptions));
+        
+        foreach ($randomProducts as $product) {
+            if (count($productOptions) < 4) {
+                $productOptions[] = [
+                    'id' => $product->getId(),
+                    'name' => $product->getName(),
+                    'price' => $product->getPrice(),
+                    'image' => $product->getImage()
+                ];
+            }
+        }
+        
+        // Shuffle the products to randomize the position of the actual purchased product
+        shuffle($productOptions);
+        
+        // Add the "I haven't purchased anything" option
+        $productOptions[] = [
+            'id' => 'no_purchase',
+            'name' => 'I haven\'t purchased anything yet',
+            'price' => '',
+            'image' => ''
+        ];
+        
+        // Store the correct answer in session
+        $_SESSION['purchased_product_ids'] = array_column($purchasedProducts, 'id');
+        
+        // Check if form is submitted
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Get form data
+            $selectedProductId = $_POST['product_id'] ?? '';
+            
+            // Validate input
+            if (empty($selectedProductId)) {
+                $errors[] = 'Please select an option';
+            }
+            
+            // Check if the selected product is correct
+            $correctAnswer = false;
+            
+            if ($selectedProductId === 'no_purchase' && empty($_SESSION['purchased_product_ids'])) {
+                // User correctly selected they haven't purchased anything
+                $correctAnswer = true;
+            } elseif (in_array($selectedProductId, $_SESSION['purchased_product_ids'])) {
+                // User correctly selected a product they purchased
+                $correctAnswer = true;
+            }
+            
+            if ($correctAnswer) {
+                // Set verification flag in session
+                $_SESSION['purchase_verified'] = true;
+                
+                // Redirect to reset password page
+                header('Location: /Auth/resetPassword');
+                exit();
+            } else {
+                $errors[] = 'Incorrect selection. Please try again.';
+                
+                // Increment failed attempts
+                $_SESSION['verification_attempts'] = ($_SESSION['verification_attempts'] ?? 0) + 1;
+                
+                // If too many failed attempts, redirect to login
+                if ($_SESSION['verification_attempts'] >= 3) {
+                    unset($_SESSION['reset_password_user_id']);
+                    unset($_SESSION['purchased_product_ids']);
+                    unset($_SESSION['verification_attempts']);
+                    
+                    $_SESSION['error_message'] = 'Too many failed attempts. Please try again later.';
+                    header('Location: /Auth/login');
+                    exit();
+                }
+            }
+        }
+        
+        // Display product verification form
+        include 'app/views/auth/verify_purchase.php';
+    }
+    
+    /**
+     * Reset password form
+     */
+    public function resetPassword()
+    {
+        // Check if user is verified
+        if (!isset($_SESSION['reset_password_user_id']) || !isset($_SESSION['purchase_verified']) || $_SESSION['purchase_verified'] !== true) {
+            header('Location: /Auth/forgotPassword');
+            exit();
+        }
+        
+        $userId = $_SESSION['reset_password_user_id'];
+        $user = $this->userModel->findById($userId);
+        
+        if (!$user) {
+            unset($_SESSION['reset_password_user_id']);
+            unset($_SESSION['purchase_verified']);
+            $_SESSION['error_message'] = 'Invalid user session. Please try again.';
+            header('Location: /Auth/forgotPassword');
+            exit();
+        }
+        
+        $errors = [];
+        
+        // Check if form is submitted
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // Get form data
+            $newPassword = $_POST['new_password'] ?? '';
+            $confirmPassword = $_POST['confirm_password'] ?? '';
+            
+            // Validate input
+            if (empty($newPassword)) {
+                $errors[] = 'New password is required';
+            } elseif (strlen($newPassword) < 6) {
+                $errors[] = 'New password must be at least 6 characters long';
+            }
+            
+            if (empty($confirmPassword)) {
+                $errors[] = 'Password confirmation is required';
+            } elseif ($newPassword !== $confirmPassword) {
+                $errors[] = 'New password and confirmation do not match';
+            }
+            
+            // If no validation errors, update password
+            if (empty($errors)) {
+                $user->setPassword($newPassword);
+                
+                if ($user->save()) {
+                    // Clear reset password session data
+                    unset($_SESSION['reset_password_user_id']);
+                    unset($_SESSION['purchase_verified']);
+                    unset($_SESSION['purchased_product_ids']);
+                    unset($_SESSION['verification_attempts']);
+                    
+                    $_SESSION['success_message'] = 'Password has been reset successfully. You can now log in with your new password.';
+                    header('Location: /Auth/login');
+                    exit();
+                } else {
+                    $errors[] = 'Failed to reset password. Please try again.';
+                }
+            }
+        }
+        
+        // Display reset password form
+        include 'app/views/auth/reset_password.php';
+    }
 }
