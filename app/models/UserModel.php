@@ -119,10 +119,7 @@ class UserModel
      */
     private function insert()
     {
-        // Hash password if not already hashed
-        if (!$this->isPasswordHashed()) {
-            $this->password = password_hash($this->password, PASSWORD_DEFAULT);
-        }
+        // Password is already hashed in setPassword method, so we don't need to hash it again here
 
         $sql = "INSERT INTO users (name, email, password, role) VALUES (:name, :email, :password, :role)";
 
@@ -148,10 +145,7 @@ class UserModel
      */
     private function update()
     {
-        // Hash password if not already hashed and not empty
-        if (!empty($this->password) && !$this->isPasswordHashed()) {
-            $this->password = password_hash($this->password, PASSWORD_DEFAULT);
-        }
+        // Password is already hashed in setPassword method, so we don't need to hash it again here
 
         $sql = "UPDATE users SET name = :name, email = :email";
         $params = [
@@ -201,11 +195,13 @@ class UserModel
     /**
      * Check if password is already hashed
      *
+     * @param string $password Password to check, defaults to the current password
      * @return bool
      */
-    private function isPasswordHashed()
+    private function isPasswordHashed($password = null)
     {
-        return password_get_info($this->password)['algo'] !== 0;
+        $passwordToCheck = $password ?? $this->password;
+        return password_get_info($passwordToCheck)['algo'] !== 0;
     }
 
     /**
@@ -275,7 +271,11 @@ class UserModel
      */
     public function setPassword($password)
     {
-        $this->password = $password;
+        // Always hash the password when it's set
+        if (!empty($password)) {
+            // Luôn mã hóa mật khẩu mới, không cần kiểm tra nó đã được mã hóa hay chưa
+            $this->password = password_hash($password, PASSWORD_DEFAULT);
+        }
     }
 
     /**
